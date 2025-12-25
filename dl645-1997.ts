@@ -6,7 +6,7 @@
  * @Autor: hongjy
  * @Date: 2025-12-23 17:08:37
  * @LastEditors: name
- * @LastEditTime: 2025-12-25 10:29:42
+ * @LastEditTime: 2025-12-25 14:00:53
  */
 
 
@@ -173,6 +173,7 @@ export interface DL645CommandResult {
 }
 
 // ====================== 核心类实现 ======================
+//协议核心，负责命令生成、帧解析
 class DL645_1997_Core {
   /**
    * 单个字节反码（DL645-1997 地址/数据反码规则）
