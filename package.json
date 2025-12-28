@@ -8,6 +8,7 @@
   },
   "keywords": [],
   "author": "hongjy",
+ " type": "commonjs",
   "license": "ISC",
   "dependencies": {
     "@serialport/parser-byte-length": "^13.0.0",

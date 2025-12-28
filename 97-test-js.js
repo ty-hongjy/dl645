@@ -3,12 +3,15 @@
 // const dl645_1997_1 = __importStar(require("./dl645-1997"));
 // import DL645_1997_CommandBuilder, { DL645DataId, DL645ControlCode, SwitchCommand } from './dl645-1997';
 // import dl645_1997_1, { DL645DataId, DL645ControlCode, SwitchCommand } from './dl645-1997.js';
-const { default: dl645_1997_1, DL645DataId, DL645ControlCode, SwitchCommand } = require('./dl645-1997.js');
-
+// const { default: dl645_1997_1, DL645DataId, DL645ControlCode, SwitchCommand } = require('./dl645-1997.js');
+// const {  DL645_1997_core, DL645DataId, DL645ControlCode, SwitchCommand } = require('./dl645-1997.js');
+const DL645_1997_core = require('./dl645-1997.js')
 // import  {  SwitchCommand } from './97-dou-ctl-2';
 // import DL645_1997_CommandBuilder from './dl645-command-builder';
 // 2. 实例化
-const builder = new dl645_1997_1.default();
+const builder = DL645_1997_core;
+// const builder = new DL645_1997_core();
+// const builder = new dl645_1997_1.default();
 // 3. 生成读A相电压命令
 const result = builder.buildReadCommand('1234567890AB', // 电表地址
 '00010100' // A相电压数据标识
