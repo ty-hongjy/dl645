@@ -6,7 +6,7 @@
  * @Autor: hongjy
  * @Date: 2025-12-23 17:08:37
  * @LastEditors: name
- * @LastEditTime: 2025-12-25 14:00:53
+ * @LastEditTime: 2026-01-06 10:53:09
  */
 
 
@@ -38,7 +38,7 @@ export const DL645DataId = {
   PHASE_C_ACTIVE_POWER: '00030400', // C相有功功率
   // 电表余额
   METER_BALANCE: '00100100', // 电表剩余金额
-  // 新增：保电控制（DL645-1997扩展通用标识）
+  // 保电控制（DL645-1997扩展通用标识）
   POWER_PROTECT: '00110100', // 保电控制/状态查询
   SWITCH_CONTROL: '000F0100' // 开关控制（合闸/分闸）
 
