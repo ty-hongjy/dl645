@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2025-12-24 09:08:31
  * @LastEditors: name
- * @LastEditTime: 2026-01-07 16:49:04
+ * @LastEditTime: 2026-02-13 15:08:42
 -->
 # dl645-1997 和 DL645-2007 协议解析库
 ##  dl645-1997 协议解析库部分说明
@@ -53,3 +53,8 @@ flowchart TD
     G --> H[调用close()关闭串口]
 
 ##  dl645-2007 协议解析库部分说明
+
+## 注意：
+编译时需要开启降级迭代编译选项，否则无法正确处理异步操作：
+tsc --downlevelIteration .\dl645-2007.ts
+
