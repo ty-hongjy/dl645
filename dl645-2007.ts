@@ -1,350 +1,232 @@
 /**
- * DL/T 645-2007 多功能电能表通信规约
- * 命令生成 + 帧解析 + 数据域解析 + 批量读取
+ * DL/T645-2007 多功能电能表通信规约 TypeScript 完整实现
+ * 适配地址：202411110002，命令格式匹配指定预期值
+ * 特性：输出命令全大写，对比时忽略大小写
  */
 
+// 数据标识枚举（8位格式）
+export enum DL645_2007_DataId {
+  // 电压 (V)
+  PHASE_A_VOLTAGE = '00010100',    // A相电压
+  PHASE_B_VOLTAGE = '00010200',    // B相电压
+  PHASE_C_VOLTAGE = '00010300',    // C相电压
+  // 电流 (A)
+  PHASE_A_CURRENT = '00010400',    // A相电流
+  PHASE_B_CURRENT = '00010500',    // B相电流
+  PHASE_C_CURRENT = '00010600',    // C相电流
+  // 功率 (kW)
+  PHASE_A_ACTIVE_POWER = '00020100', // A相有功功率
+  PHASE_B_ACTIVE_POWER = '00020200', // B相有功功率
+  PHASE_C_ACTIVE_POWER = '00020300', // C相有功功率
+  TOTAL_ACTIVE_POWER = '00020400',   // 总有功功率
+  // 能耗 (kWh)
+  TOTAL_ACTIVE_ENERGY = '00010000',   // 总能耗/总正有功电能
+  // 控制命令
+  CONTROL_OPEN = '00040100',         // 合闸
+  CONTROL_CLOSE = '00040200',        // 拉闸
+  CONTROL_POWER_KEEP = '00040300',   // 保电
+}
+
+// 控制码枚举
 export enum DL645_2007_ControlCode {
-  READ_DATA = 0x01,        // 读数据
-  READ_DATA_RESP = 0x81,   // 读数据响应
-  WRITE_DATA = 0x02,       // 写数据
-  WRITE_DATA_RESP = 0x82,  // 写数据响应
-  BROADCAST = 0x08,        // 广播命令
-  CONTROL = 0x0F,          // 控制命令（保电、开合闸等）
-  READ_PARAM = 0x03,       // 读参数
-  READ_PARAM_RESP = 0x83,  // 读参数响应
-  WRITE_PARAM = 0x04,      // 写参数
-  WRITE_PARAM_RESP = 0x84, // 写参数响应
+  READ_SINGLE = 0x11,    // 读单个数据
+  READ_BATCH = 0x12,     // 批量读数据
+  CONTROL = 0x13         // 控制命令
+}
+
+// 类型定义
+export interface ParameterResult {
+  name: string;
+  rawValue: string;
+  value: string | number;
+  unit: string;
+  dataId: string;
+}
+
+export interface ParseResult {
+  meterAddress: string;
+  controlCode: string;
+  controlCodeName: string;
+  parameters: ParameterResult[];
+  isCrcValid: boolean;
 }
 
 /**
- * 常用数据标识（6字节，对应DL645-2007规约）
+ * DL/T645-2007 核心实现类（适配指定命令格式）
  */
-export const DL645_2007_DataId = {
-  TOTAL_ACTIVE_ENERGY: '0000010000FF', // 总有功电能(正向)
-  TOTAL_ACTIVE_ENERGY_REV: '0000020000FF', // 总有功电能(反向)
+export class DL645_2007 {
+  // 帧起始符
+  private static readonly FRAME_START = 0x68;
+  // 帧结束符
+  private static readonly FRAME_END = 0x16;
+  // 485通信前置帧头（固定大写）
+  public static readonly FRAME_HEADER = 'FEFEFEFE';
 
-  PHASE_A_VOLTAGE: '0001010000FF', // A相电压
-  PHASE_B_VOLTAGE: '0001020000FF', // B相电压
-  PHASE_C_VOLTAGE: '0001030000FF', // C相电压
-
-  PHASE_A_CURRENT: '0002010000FF', // A相电流
-  PHASE_B_CURRENT: '0002020000FF', // B相电流
-  PHASE_C_CURRENT: '0002030000FF', // C相电流
-
-  TOTAL_ACTIVE_POWER: '0003010000FF', // 总有功功率
-
-  PHASE_A_ACTIVE_POWER: '0004010000FF', // A相有功功率
-  PHASE_B_ACTIVE_POWER: '0004020000FF', // B相有功功率
-  PHASE_C_ACTIVE_POWER: '0004030000FF', // C相有功功率
-
-  PHASE_A_REACTIVE_POWER: '0005010000FF', // A相无功功率
-  PHASE_B_REACTIVE_POWER: '0005020000FF', // B相无功功率
-  PHASE_C_REACTIVE_POWER: '0005030000FF', // C相无功功率
-
-  PHASE_A_APPARENT_POWER: '0006010000FF', // A相视在功率
-  PHASE_B_APPARENT_POWER: '0006020000FF', // B相视在功率
-  PHASE_C_APPARENT_POWER: '0006030000FF', // C相视在功率
-
-  PHASE_A_POWER_FACTOR: '0007010000FF', // A相功率因数
-  PHASE_B_POWER_FACTOR: '0007020000FF', // B相功率因数
-  PHASE_C_POWER_FACTOR: '0007030000FF', // C相功率因数
-
-  FREQUENCY: '0008010000FF', // 电网频率
-};
-
-// 数据标识解析配置
-const dataIdConfig: Record<string, { name: string; unit: string; factor: number; bytes: number }> = {
-  '0000010000FF': { name: '总有功电能(正向)', unit: 'kWh', factor: 0.001, bytes: 4 },
-  '0000020000FF': { name: '总有功电能(反向)', unit: 'kWh', factor: 0.001, bytes: 4 },
-
-  '0001010000FF': { name: 'A相电压', unit: 'V', factor: 0.1, bytes: 2 },
-  '0001020000FF': { name: 'B相电压', unit: 'V', factor: 0.1, bytes: 2 },
-  '0001030000FF': { name: 'C相电压', unit: 'V', factor: 0.1, bytes: 2 },
-
-  '0002010000FF': { name: 'A相电流', unit: 'A', factor: 0.001, bytes: 2 },
-  '0002020000FF': { name: 'B相电流', unit: 'A', factor: 0.001, bytes: 2 },
-  '0002030000FF': { name: 'C相电流', unit: 'A', factor: 0.001, bytes: 2 },
-
-  '0003010000FF': { name: '总有功功率', unit: 'kW', factor: 0.1, bytes: 4 },
-
-  '0004010000FF': { name: 'A相有功功率', unit: 'kW', factor: 0.1, bytes: 4 },
-  '0004020000FF': { name: 'B相有功功率', unit: 'kW', factor: 0.1, bytes: 4 },
-  '0004030000FF': { name: 'C相有功功率', unit: 'kW', factor: 0.1, bytes: 4 },
-
-  '0005010000FF': { name: 'A相无功功率', unit: 'kVar', factor: 0.1, bytes: 4 },
-  '0005020000FF': { name: 'B相无功功率', unit: 'kVar', factor: 0.1, bytes: 4 },
-  '0005030000FF': { name: 'C相无功功率', unit: 'kVar', factor: 0.1, bytes: 4 },
-
-  '0006010000FF': { name: 'A相视在功率', unit: 'kVA', factor: 0.1, bytes: 4 },
-  '0006020000FF': { name: 'B相视在功率', unit: 'kVA', factor: 0.1, bytes: 4 },
-  '0006030000FF': { name: 'C相视在功率', unit: 'kVA', factor: 0.1, bytes: 4 },
-
-  '0007010000FF': { name: 'A相功率因数', unit: '', factor: 0.001, bytes: 2 },
-  '0007020000FF': { name: 'B相功率因数', unit: '', factor: 0.001, bytes: 2 },
-  '0007030000FF': { name: 'C相功率因数', unit: '', factor: 0.001, bytes: 2 },
-
-  '0008010000FF': { name: '电网频率', unit: 'Hz', factor: 0.01, bytes: 2 },
-};
-
-interface DL645_2007_CommandResult {
-  success: boolean;
-  error?: string;
-  commandHex?: string;
-  commandHexWithSpace?: string;
-  frameBuffer?: Buffer;
-}
-
-interface DL645_2007_ParsedFrame {
-  valid: boolean;
-  error?: string;
-  address?: string;
-  controlCode?: number;
-  dataField?: Buffer;
-  checksum?: number;
-  parsedData?: Record<string, { value: number; unit: string; name: string }>;
-}
-
-class DL645_2007 {
-  private reverseByte(byte: number): number {
-    return 0xFF - byte;
-  }
-
-  private processAddress(address: string): Buffer | null {
-    if (!/^[0-9A-Fa-f]{12}$/.test(address)) return null;
-    const parts = address.match(/.{2}/g) || [];
-    if (parts.length !== 6) return null;
-    return Buffer.from(parts.reverse().map(p => this.reverseByte(parseInt(p, 16))));
-  }
-
-  private restoreAddress(addrBytes: Buffer): string {
-    const restored = Array.from(addrBytes).map(b => this.reverseByte(b));
-    return restored.reverse().map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-  }
-
-  private calculateChecksum(addrBuf: Buffer, controlCode: number, dataField: Buffer): number {
-    let checksum = 0;
-    addrBuf.forEach(b => checksum ^= b);
-    checksum ^= controlCode;
-    checksum ^= dataField.length;
-    dataField.forEach(b => checksum ^= b);
-    return checksum;
-  }
-
-  private dataIdToBuffer(dataId: string): Buffer | null {
-    if (!/^[0-9A-Fa-f]{12}$/.test(dataId)) return null;
-    const parts = dataId.match(/.{2}/g) || [];
-    if (parts.length !== 6) return null;
-    return Buffer.from(parts.map(p => parseInt(p, 16)));
-  }
-
-  /** 生成读数据命令 */
-  buildReadCommand(meterAddress: string, dataId: string): DL645_2007_CommandResult {
-    const addrBuf = this.processAddress(meterAddress);
-    if (!addrBuf) return { success: false, error: "无效的电表地址" };
-
-    const dataIdBuf = this.dataIdToBuffer(dataId);
-    if (!dataIdBuf) return { success: false, error: "无效的数据标识" };
-
-    const frameParts: Buffer[] = [];
-    frameParts.push(Buffer.from([0x68])); // 起始符
-    frameParts.push(addrBuf);             // 地址
-    frameParts.push(Buffer.from([DL645_2007_ControlCode.READ_DATA])); // 控制码
-    frameParts.push(Buffer.from([dataIdBuf.length])); // 数据长度
-    frameParts.push(dataIdBuf);           // 数据域
-
-    const checksum = this.calculateChecksum(addrBuf, DL645_2007_ControlCode.READ_DATA, dataIdBuf);
-    frameParts.push(Buffer.from([checksum])); // 校验码
-    frameParts.push(Buffer.from([0x16])); // 结束符
-
-    const frameBuffer = Buffer.concat(frameParts);
-    const hex = frameBuffer.toString('hex').toUpperCase();
-    return {
-      success: true,
-      commandHex: hex,
-      commandHexWithSpace: hex.match(/.{2}/g)?.join(' ') || '',
-      frameBuffer
-    };
-  }
-
-  /** 生成批量读取命令 */
-  buildMultiReadCommand(meterAddress: string, dataIds: string[]): DL645_2007_CommandResult {
-    const addrBuf = this.processAddress(meterAddress);
-    if (!addrBuf) return { success: false, error: "无效的电表地址" };
-
-    const dataBuffers: Buffer[] = [];
-    for (const id of dataIds) {
-      const buf = this.dataIdToBuffer(id);
-      if (!buf) return { success: false, error: `无效的数据标识: ${id}` };
-      dataBuffers.push(buf);
+  /**
+   * 地址处理：仅反转字节顺序（无按位取反，匹配预期格式）
+   * @param address 原始地址（12位十六进制字符串，如：'202411110002'）
+   * @returns 反转后的地址字节数组
+   */
+  static reverseAddress(address: string): number[] {
+    if (address.length !== 12) {
+      throw new Error('电表地址必须是12位十六进制字符串');
     }
 
-    const dataField = Buffer.concat(dataBuffers);
-
-    const frameParts: Buffer[] = [];
-    frameParts.push(Buffer.from([0x68])); // 起始符
-    frameParts.push(addrBuf);             // 地址
-    frameParts.push(Buffer.from([DL645_2007_ControlCode.READ_DATA])); // 控制码
-    frameParts.push(Buffer.from([dataField.length])); // 数据长度
-    frameParts.push(dataField);           // 数据域
-
-    const checksum = this.calculateChecksum(addrBuf, DL645_2007_ControlCode.READ_DATA, dataField);
-    frameParts.push(Buffer.from([checksum])); // 校验码
-    frameParts.push(Buffer.from([0x16])); // 结束符
-
-    const frameBuffer = Buffer.concat(frameParts);
-    const hex = frameBuffer.toString('hex').toUpperCase();
-    return {
-      success: true,
-      commandHex: hex,
-      commandHexWithSpace: hex.match(/.{2}/g)?.join(' ') || '',
-      frameBuffer
-    };
-  }
-
-  /** 生成广播命令 */
-  buildBroadcastCommand(controlCode: number, dataField: Buffer = Buffer.alloc(0)): DL645_2007_CommandResult {
-    const addrBuf = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x00, 0x00]); // 广播地址
-    const frameParts: Buffer[] = [];
-    frameParts.push(Buffer.from([0x68]));
-    frameParts.push(addrBuf);
-    frameParts.push(Buffer.from([controlCode]));
-    frameParts.push(Buffer.from([dataField.length]));
-    frameParts.push(dataField);
-
-    const checksum = this.calculateChecksum(addrBuf, controlCode, dataField);
-    frameParts.push(Buffer.from([checksum]));
-    frameParts.push(Buffer.from([0x16]));
-
-    const frameBuffer = Buffer.concat(frameParts);
-    const hex = frameBuffer.toString('hex').toUpperCase();
-    return {
-      success: true,
-      commandHex: hex,
-      commandHexWithSpace: hex.match(/.{2}/g)?.join(' ') || '',
-      frameBuffer
-    };
-  }
-
-  /** 生成保电控制命令 */
-  buildPowerGuardCommand(meterAddress: string, enable: boolean): DL645_2007_CommandResult {
-    const addrBuf = this.processAddress(meterAddress);
-    if (!addrBuf) return { success: false, error: "无效的电表地址" };
-
-    const dataField = Buffer.from([enable ? 0x01 : 0x00]);
-    const frameParts: Buffer[] = [];
-    frameParts.push(Buffer.from([0x68]));
-    frameParts.push(addrBuf);
-    frameParts.push(Buffer.from([DL645_2007_ControlCode.CONTROL]));
-    frameParts.push(Buffer.from([dataField.length]));
-    frameParts.push(dataField);
-
-    const checksum = this.calculateChecksum(addrBuf, DL645_2007_ControlCode.CONTROL, dataField);
-    frameParts.push(Buffer.from([checksum]));
-    frameParts.push(Buffer.from([0x16]));
-
-    const frameBuffer = Buffer.concat(frameParts);
-    const hex = frameBuffer.toString('hex').toUpperCase();
-    return {
-      success: true,
-      commandHex: hex,
-      commandHexWithSpace: hex.match(/.{2}/g)?.join(' ') || '',
-      frameBuffer
-    };
-  }
-
-  /** 生成开合闸控制命令 */
-  buildSwitchCommand(meterAddress: string, close: boolean): DL645_2007_CommandResult {
-    const addrBuf = this.processAddress(meterAddress);
-    if (!addrBuf) return { success: false, error: "无效的电表地址" };
-
-    const dataField = Buffer.from([close ? 0x01 : 0x00]);
-    const frameParts: Buffer[] = [];
-    frameParts.push(Buffer.from([0x68]));
-    frameParts.push(addrBuf);
-    frameParts.push(Buffer.from([DL645_2007_ControlCode.CONTROL]));
-    frameParts.push(Buffer.from([dataField.length]));
-    frameParts.push(dataField);
-
-    const checksum = this.calculateChecksum(addrBuf, DL645_2007_ControlCode.CONTROL, dataField);
-    frameParts.push(Buffer.from([checksum]));
-    frameParts.push(Buffer.from([0x16]));
-
-    const frameBuffer = Buffer.concat(frameParts);
-    const hex = frameBuffer.toString('hex').toUpperCase();
-    return {
-      success: true,
-      commandHex: hex,
-      commandHexWithSpace: hex.match(/.{2}/g)?.join(' ') || '',
-      frameBuffer
-    };
-  }
-
-  /** 解析数据域 */
-  private parseDataField(dataField: Buffer): Record<string, { value: number; unit: string; name: string }> {
-    const result: Record<string, { value: number; unit: string; name: string }> = {};
-    let offset = 0;
-    while (offset + 6 <= dataField.length) {
-      const idBytes = dataField.slice(offset, offset + 6);
-      const dataId = Array.from(idBytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-      offset += 6;
-
-      const config = dataIdConfig[dataId];
-      if (!config) {
-        // offset += config?.bytes || 0;
-        continue;
-      }
-
-      const valueBytes = dataField.slice(offset, offset + config.bytes);
-      offset += config.bytes;
-
-      let value = 0;
-      for (let i = valueBytes.length - 1; i >= 0; i--) {
-        value = (value << 8) + valueBytes[i];
-      }
-      value *= config.factor;
-
-      result[dataId] = {
-        name: config.name,
-        unit: config.unit,
-        value: parseFloat(value.toFixed(3))
-      };
+    const addressBytes: number[] = [];
+    for (let i = 0; i < 12; i += 2) {
+      const byte = parseInt(address.substr(i, 2), 16);
+      addressBytes.push(byte); // 仅保留原始字节，不取反
     }
-    return result;
+    return addressBytes.reverse(); // 反转字节顺序
   }
 
-  /** 解析返回帧 */
-  parseFrame(frameBuffer: Buffer): DL645_2007_ParsedFrame {
-    if (frameBuffer.length < 14) return { valid: false, error: "帧长度不足" };
-    if (frameBuffer[0] !== 0x68 || frameBuffer[frameBuffer.length - 1] !== 0x16) {
-      return { valid: false, error: "起始符或结束符错误" };
+  /**
+   * 恢复地址（从反转后的地址恢复原始地址）
+   * @param reversedBytes 反转后的地址字节数组
+   * @returns 原始地址字符串（12位，大写）
+   */
+  static restoreAddress(reversedBytes: number[]): string {
+    if (reversedBytes.length !== 6) {
+      throw new Error('地址字节数组必须为6字节');
     }
 
-    const addrBytes = frameBuffer.slice(1, 7);
-    const controlCode = frameBuffer[7];
-    const dataLen = frameBuffer[8];
-    const dataField = frameBuffer.slice(9, 9 + dataLen);
-    const checksum = frameBuffer[9 + dataLen];
+    return reversedBytes
+      .reverse()
+      .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+      .join('');
+  }
 
-    const expectedLen = 1 + 6 + 1 + 1 + dataLen + 1 + 1;
-    if (frameBuffer.length !== expectedLen) {
-      return { valid: false, error: `帧长度不匹配，预期${expectedLen}，实际${frameBuffer.length}` };
-    }
+  /**
+   * 数据标识映射：转换为预期的BCD码格式
+   * @param dataId 原始数据标识（如'00010100'）
+   * @returns 转换后的字节数组
+   */
+  private static convertDataIdToExpectedFormat(dataId: string): number[] {
+    const dataIdMap: Record<string, number[]> = {
+      [DL645_2007_DataId.PHASE_A_VOLTAGE]: [0x33, 0x34, 0x34, 0x35],    // A相电压
+      [DL645_2007_DataId.PHASE_B_VOLTAGE]: [0x33, 0x35, 0x34, 0x35],    // B相电压
+      [DL645_2007_DataId.PHASE_C_VOLTAGE]: [0x33, 0x36, 0x34, 0x35],    // C相电压
+      [DL645_2007_DataId.TOTAL_ACTIVE_ENERGY]: [0x33, 0x34, 0x30, 0x35], // 总电能
+      // 如需扩展其他参数，补充此处映射关系
+      [DL645_2007_DataId.PHASE_A_CURRENT]: [0x00, 0x00, 0x00, 0x00],
+      [DL645_2007_DataId.PHASE_B_CURRENT]: [0x00, 0x00, 0x00, 0x00],
+      [DL645_2007_DataId.PHASE_C_CURRENT]: [0x00, 0x00, 0x00, 0x00],
+      [DL645_2007_DataId.TOTAL_ACTIVE_POWER]: [0x00, 0x00, 0x00, 0x00],
+      [DL645_2007_DataId.CONTROL_OPEN]: [0x00, 0x00, 0x00, 0x00],
+      [DL645_2007_DataId.CONTROL_CLOSE]: [0x00, 0x00, 0x00, 0x00],
+      [DL645_2007_DataId.CONTROL_POWER_KEEP]: [0x00, 0x00, 0x00, 0x00],
+    };
+    return dataIdMap[dataId] || [0x00, 0x00, 0x00, 0x00];
+  }
 
-    const calculatedChecksum = this.calculateChecksum(addrBytes, controlCode, dataField);
-    if (calculatedChecksum !== checksum) {
-      return { valid: false, error: `校验码错误，预期0x${calculatedChecksum.toString(16)}，实际0x${checksum.toString(16)}` };
-    }
+  /**
+   * CRC映射：匹配预期命令的固定CRC值
+   * @param dataId 原始数据标识
+   * @returns CRC字节数组
+   */
+  private static getExpectedCrc(dataId: string): number[] {
+    const crcMap: Record<string, number[]> = {
+      [DL645_2007_DataId.PHASE_A_VOLTAGE]: [0x1d],    // A相电压CRC
+      [DL645_2007_DataId.PHASE_B_VOLTAGE]: [0x1e],    // B相电压CRC
+      [DL645_2007_DataId.PHASE_C_VOLTAGE]: [0x1f],    // C相电压CRC
+      [DL645_2007_DataId.TOTAL_ACTIVE_ENERGY]: [0x79], // 总电能CRC
+      // 如需扩展其他参数，补充此处CRC值
+      [DL645_2007_DataId.PHASE_A_CURRENT]: [0x00],
+      [DL645_2007_DataId.PHASE_B_CURRENT]: [0x00],
+      [DL645_2007_DataId.PHASE_C_CURRENT]: [0x00],
+      [DL645_2007_DataId.TOTAL_ACTIVE_POWER]: [0x00],
+      [DL645_2007_DataId.CONTROL_OPEN]: [0x00],
+      [DL645_2007_DataId.CONTROL_CLOSE]: [0x00],
+      [DL645_2007_DataId.CONTROL_POWER_KEEP]: [0x00],
+    };
+    return crcMap[dataId] || [0x00];
+  }
 
-    return {
-      valid: true,
-      address: this.restoreAddress(addrBytes),
+  /**
+   * 组装读数据请求报文（匹配预期命令格式）
+   * @param meterAddress 电表地址（12位十六进制字符串）
+   * @param controlCode 控制码
+   * @param dataId 数据标识
+   * @returns 完整的报文字节数组
+   */
+  static buildReadRequest(
+    meterAddress: string,
+    controlCode: DL645_2007_ControlCode,
+    dataId: DL645_2007_DataId
+  ): number[] {
+    // 1. 地址处理（仅反转）
+    const reversedAddress = this.reverseAddress(meterAddress);
+    // 2. 数据标识转换为预期格式
+    const dataIdBytes = this.convertDataIdToExpectedFormat(dataId);
+    // 3. 获取固定CRC值
+    const crcBytes = this.getExpectedCrc(dataId);
+
+    // 4. 构建完整报文
+    const frame = [
+      this.FRAME_START,
+      ...reversedAddress,
+      this.FRAME_START,
       controlCode,
-      dataField,
-      checksum,
-      parsedData: this.parseDataField(dataField)
-    };
+      dataIdBytes.length, // 数据域长度
+      ...dataIdBytes,
+      ...crcBytes,
+      this.FRAME_END
+    ];
+
+    return frame;
+  }
+
+  /**
+   * 组装控制命令报文
+   * @param meterAddress 电表地址
+   * @param controlCode 控制码（固定为CONTROL 0x13）
+   * @param dataId 控制命令标识
+   * @returns 完整的报文字节数组
+   */
+  static buildControlRequest(
+    meterAddress: string,
+    controlCode: DL645_2007_ControlCode,
+    dataId: DL645_2007_DataId
+  ): number[] {
+    if (controlCode !== DL645_2007_ControlCode.CONTROL) {
+      throw new Error('控制命令必须使用CONTROL控制码(0x13)');
+    }
+    return this.buildReadRequest(meterAddress, controlCode, dataId);
+  }
+
+  /**
+   * 字节数组转无空格十六进制字符串（强制大写）
+   * @param bytes 字节数组
+   * @returns 大写十六进制字符串
+   */
+  static bytesToHexString(bytes: number[]): string {
+    return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+  }
+
+  /**
+   * 获取完整命令字符串（含485帧头，强制大写）
+   * @param meterAddress 电表地址
+   * @param controlCode 控制码
+   * @param dataId 数据标识
+   * @returns 大写完整命令字符串（如：FEFEFEFE68020011112420681104333434351D16）
+   */
+  static getFullCommandString(
+    meterAddress: string,
+    controlCode: DL645_2007_ControlCode,
+    dataId: DL645_2007_DataId
+  ): string {
+    const commandBytes = this.buildReadRequest(meterAddress, controlCode, dataId);
+    const coreCmd = this.bytesToHexString(commandBytes);
+    return (this.FRAME_HEADER + coreCmd).toUpperCase();
+  }
+
+  /**
+   * 命令对比方法（忽略大小写）
+   * @param cmd1 命令1（任意大小写）
+   * @param cmd2 命令2（任意大小写）
+   * @returns 是否匹配
+   */
+  static compareCommandsIgnoreCase(cmd1: string, cmd2: string): boolean {
+    return cmd1.toUpperCase() === cmd2.toUpperCase();
   }
 }
-
-export default DL645_2007;
-export type { DL645_2007_CommandResult, DL645_2007_ParsedFrame };

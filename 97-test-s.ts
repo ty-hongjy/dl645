@@ -185,10 +185,10 @@ export class MeterSerialClient {
 }
 
 // ====================== 主程序：测试读取总有功电能 ======================
-if (require.main === module) {
+// if (require.main === module) {
   // 配置参数（根据实际情况修改）
   const SERIAL_CONFIG = {
-    path: 'COM1',          // Windows: COM3, Linux: /dev/ttyUSB0, Mac: /dev/tty.usbserial-xxxx
+    path: 'COM4',          // Windows: COM3, Linux: /dev/ttyUSB0, Mac: /dev/tty.usbserial-xxxx
     baudRate: 1200,        // 电表常用波特率
     stopBits: 1,
     parity: 'even',
@@ -201,6 +201,7 @@ if (require.main === module) {
   // 创建客户端实例
   const meterClient = new MeterSerialClient(SERIAL_CONFIG, false);
 
+  // }
   // 主执行逻辑
   async function main() {
     try {
@@ -232,7 +233,6 @@ if (require.main === module) {
       meterClient.close();
       console.log('\n程序执行完毕，串口已关闭');
     }
-  }
 
   // 运行主程序
   main();

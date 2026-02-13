@@ -2,7 +2,7 @@ import {SerialPort} from 'serialport';
 import DL645_2007, { DL645_2007_DataId } from './dl645-2007'; // 引用你之前的类文件
 
 // 串口配置（根据你的硬件修改）
-const port = new SerialPort({path:'/dev/ttyUSB0',
+const port = new SerialPort({path:'COM4',
   baudRate: 2400,    // DL645-2007 常见波特率
   dataBits: 8,
   parity: 'even',    // 偶校验
@@ -19,7 +19,7 @@ port.on('open', () => {
 
   // 批量读取命令（三相电压 + 三相电流 + 总有功功率）
   const cmd = dl645.buildMultiReadCommand(
-    '1234567890AB', // 电表地址
+    '202411110002', // 电表地址
     [
       DL645_2007_DataId.PHASE_A_VOLTAGE,
       DL645_2007_DataId.PHASE_B_VOLTAGE,

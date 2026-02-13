@@ -8,13 +8,16 @@ import DL645_1997_CommandBuilder, { DL645DataId, DL645ControlCode, PowerProtectC
 const builder = new DL645_1997_CommandBuilder();
 
 // 3. 生成读A相电压命令
+const meterAddress = '000048604296'; // 电表地址（12位16进制）
 const result = builder.buildReadCommand(
-  '1234567890AB', // 电表地址
-  '00010100' // A相电压数据标识
+  meterAddress, 
+  DL645DataId.PHASE_A_VOLTAGE // A相电压
+//  '00010100' // A相电压数据标识
 );
 
 // 4. 使用命令（串口发送等）
 if (result.success) {
+  console.log('=== 读总A相电压命令 ===');
   console.log('待发送的命令字符串：', result.commandHex);
   // 串口发送：result.frameBuffer 直接写入串口
 } else {

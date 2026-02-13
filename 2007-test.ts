@@ -1,4 +1,4 @@
-import DL645_2007, { DL645_2007_DataId } from './dl645-2007';
+import {DL645_2007,  DL645_2007_DataId } from './dl645-2007';
 
 // 测试
 if (require.main === module) {
@@ -6,7 +6,7 @@ if (require.main === module) {
 
   // 批量读取示例
   const cmd = dl645.buildMultiReadCommand(
-    '1234567890AB',
+    '202411110002',
     [
       DL645_2007_DataId.PHASE_A_VOLTAGE,
       DL645_2007_DataId.PHASE_A_CURRENT,
@@ -15,15 +15,24 @@ if (require.main === module) {
   );
   console.log("批量读取命令:", cmd.commandHexWithSpace);
 
-  // 模拟返回帧（假设电表返回了三个参数）
-  const mockResponse = Buffer.from(
-    '681234567890AB8120' +
-    '0001010000FF0258' + // A相电压
-    '0002010000FF00C8' + // A相电流
-    '0003010000FF000003E8' + // 总有功功率
-    '0016', // 校验码 + 结束符
-    'hex'
+   // 读取示例
+  const cmd1 = dl645.buildReadCommand(
+    '202411110002',DL645_2007_DataId.PHASE_A_VOLTAGE
   );
+  console.log("读取命令:", cmd1.commandHexWithSpace);
+  console.log('FE FE FE FE 68 02 00 11 11 24 20 68 11 04 33 34 34 35 1D 16');
+  // 模拟返回帧（假设电表返回了三个参数）
+  // const mockResponse = Buffer.from(
+  //   '681234567890AB8120' +
+  //   '0001010000FF0258' + // A相电压
+  //   '0002010000FF00C8' + // A相电流
+  //   '0003010000FF000003E8' + // 总有功功率
+  //   '0016', // 校验码 + 结束符
+  //   'hex'
+  // );
+  
+  const mockResponse = Buffer.from(
+    'FEFEFEFE680200111124206891063334343557564C16');
   const parsed = dl645.parseFrame(mockResponse);
   console.log("解析结果:", JSON.stringify(parsed, null, 2));
 }
