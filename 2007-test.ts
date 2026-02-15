@@ -3,13 +3,13 @@
  * @Autor: name
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-02-13 15:06:30
+ * @LastEditTime: 2026-02-15 21:13:54
  */
 /**
  * DL/T645-2007 命令验证测试程序
  * 验证地址202411110002的电压/总电能命令是否匹配预期值
  */
-import { DL645_2007, DL645_2007_ControlCode, DL645_2007_DataId } from './dl645-2007-14';
+import { DL645_2007, DL645_2007_ControlCode, DL645_2007_DataId } from './dl645-2007';
 
 // 测试配置
 const TEST_METER_ADDRESS = '202411110002'; 
@@ -25,9 +25,9 @@ const EXPECTED_COMMANDS = {
 /**
  * 辅助函数：字节数组转无空格十六进制字符串（大写）
  */
-function bytesToHexString(bytes: number[]): string {
-  return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-}
+// function bytesToHexString(bytes: number[]): string {
+//   return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+// }
 
 /**
  * 测试单个命令是否匹配预期值
@@ -48,13 +48,17 @@ function testCommandMatch(
     );
     
     // 转换为十六进制字符串（与预期格式对齐）
-    const actualHex = bytesToHexString(commandBytes);
+    // console.log(DL645_2007.bytesToHexStringWithSpace(fullActualHex)); // 打印带空格的十六进制字符串，便于阅读
+    const actualHex = DL645_2007.bytesToHexString(commandBytes);
     const fullActualHex = FRAME_HEADER + actualHex; // 拼接485帧头
-    
+    const fah=DL645_2007.getFullCommandString(TEST_METER_ADDRESS, DL645_2007_ControlCode.READ_SINGLE, dataId);
     // 验证核心命令部分
     console.log(`预期命令（核心）: ${expectedHex}`);
     console.log(`实际命令（核心）: ${actualHex}`);
     console.log(`完整命令（含帧头）: ${fullActualHex}`);
+    console.log("1:"+FRAME_HEADER + DL645_2007.bytesToHexStringWithSpace(commandBytes)); // 打印带空格的十六进制字符串，便于阅读
+    console.log("2:"+fah); // 
+
     
     // 结果判断
     if (actualHex === expectedHex) {

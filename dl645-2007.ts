@@ -203,6 +203,10 @@ export class DL645_2007 {
     return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
   }
 
+  static bytesToHexStringWithSpace(bytes: number[]): string {
+    return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+  }
+
   /**
    * 获取完整命令字符串（含485帧头，强制大写）
    * @param meterAddress 电表地址
