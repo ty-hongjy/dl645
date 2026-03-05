@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-02-15 19:08:12
+ * @LastEditTime: 2026-02-15 21:46:19
  */
 import {SerialPort} from 'serialport';
 import {DL645_2007,  DL645_2007_DataId,DL645_2007_ControlCode } from './dl645-2007'; // 引用你之前的类文件
@@ -32,7 +32,9 @@ const  dataId=DL645_2007_DataId;
 function bytesToHexString(bytes: number[]): string {
   return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
 }
-
+function hexStringToBuffer(hex: string): Buffer {
+  return Buffer.from(hex, 'hex');
+}
 port.on('open', () => {
   console.log('串口已打开，准备发送DL645-2007命令...');
 
@@ -53,7 +55,7 @@ port.on('open', () => {
     // 转换为十六进制字符串（与预期格式对齐）
     const actualHex = bytesToHexString(commandBytes);
     const fullActualHex = FRAME_HEADER + actualHex; // 拼接485帧头
-    
+     const sendBuffer = hexStringToBuffer(fullActualHex);
     // 验证核心命令部分
   //   console.log(`预期命令（核心）: ${expectedHex}`);
   //   console.log(`实际命令（核心）: ${actualHex}`);
@@ -71,7 +73,8 @@ port.on('open', () => {
   //     DL645_2007_DataId.TOTAL_ACTIVE_POWER
   //   ]
   // );
-    port.write(fullActualHex);
+    port.write(sendBuffer);
+
     console.log('发送命令:', fullActualHex);
   // if (cmd.success && cmd.frameBuffer) {
   //   console.log('发送命令:', cmd.commandHexWithSpace);
@@ -80,8 +83,8 @@ port.on('open', () => {
   //   console.error('命令生成失败:', cmd.error);
   //   port.close();
   // }
-// }
-// );
+}
+);
 
 port.on('data', (data: Buffer) => {
   console.log('收到数据:', data.toString('hex').toUpperCase());
@@ -117,5 +120,5 @@ port.on('error', (err: Error) => {
 port.on('close', () => {
   console.log('串口已关闭');
 });
-}
-);
+// }
+// );
