@@ -3,10 +3,10 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-02-15 21:46:19
+ * @LastEditTime: 2026-03-23 11:00:26
  */
 import {SerialPort} from 'serialport';
-import {DL645_2007,  DL645_2007_DataId,DL645_2007_ControlCode } from './dl645-2007'; // 引用你之前的类文件
+import {DL645_2007,  DL645_2007_DataId,DL645_2007_ControlCode } from './dlt645-2007'; // 引用你之前的类文件
 
 // 串口配置（根据你的硬件修改）
 const port = new SerialPort({path:'COM4',
