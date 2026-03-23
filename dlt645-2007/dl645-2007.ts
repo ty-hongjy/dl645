@@ -1,7 +1,10 @@
 /**
  * DL/T645-2007 多功能电能表通信规约 TypeScript 完整实现
- * 100%适配总电能命令：FEFEFEFE68020011112420681104333334331A16
- * 核心：总电能命令CRC硬编码为1A，其他参数保留标准CRC计算
+ * 校验规则：从第一个帧起始符到校验码前所有字节的模256求和（无硬编码）
+ * 适配命令：
+ * - 总电能：FEFEFEFE68020011112420681104333334331A16
+ * - A相电压：FEFEFEFE68020011112420681104333434351D16
+ * - A相电流：FEFEFEFE68020011112420681104333435351E16
  */
 
 // 数据标识枚举（8位格式）
@@ -10,17 +13,22 @@ export enum DL645_2007_DataId {
   PHASE_A_VOLTAGE = '02010100',    // A相电压
   PHASE_B_VOLTAGE = '02010200',    // B相电压
   PHASE_C_VOLTAGE = '02010300',    // C相电压
+  
   // 电流 (A)
-  PHASE_A_CURRENT = '00010400',    // A相电流
-  PHASE_B_CURRENT = '00010500',    // B相电流
-  PHASE_C_CURRENT = '00010600',    // C相电流
+  PHASE_A_CURRENT = '02020100',    // A相电流
+  PHASE_B_CURRENT = '02020200',    // B相电流
+  PHASE_C_CURRENT = '02020300',    // C相电流
+  
   // 功率 (kW)
-  PHASE_A_ACTIVE_POWER = '00020100', // A相有功功率
-  PHASE_B_ACTIVE_POWER = '00020200', // B相有功功率
-  PHASE_C_ACTIVE_POWER = '00020300', // C相有功功率
-  TOTAL_ACTIVE_POWER = '00020400',   // 总有功功率
+  PHASE_A_ACTIVE_POWER = '02030100', // A相有功功率
+  PHASE_B_ACTIVE_POWER = '02030200', // B相有功功率
+  PHASE_C_ACTIVE_POWER = '02030300', // C相有功功率
+  
+  TOTAL_ACTIVE_POWER = '020400',   // 总有功功率
   // 能耗 (kWh) - 适配预期命令的原始数据域：00 01 00 00（反转后00 00 01 00）
   TOTAL_ACTIVE_ENERGY = '00010000',   // 总能耗/总正有功电能
+  COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION = '00000000', // 组合有功总能耗  
+
   // 控制命令
   CONTROL_OPEN = '00040100',         // 合闸
   CONTROL_CLOSE = '00040200',        // 拉闸
@@ -52,7 +60,7 @@ export interface ParseResult {
 }
 
 /**
- * DL/T645-2007 核心实现类（100%适配总电能命令）
+ * DL/T645-2007 核心实现类（模256求和校验，无硬编码）
  */
 export class DL645_2007 {
   // 帧起始符
@@ -63,8 +71,6 @@ export class DL645_2007 {
   public static readonly FRAME_HEADER = 'FEFEFEFE';
   // 数据域发送时的偏移值（每位加33/0x33）
   private static readonly DATA_OFFSET = 0x33;
-  // 总电能命令硬编码CRC值（确保匹配预期）
-  private static readonly TOTAL_ENERGY_CRC = 0x1A;
 
   /**
    * 地址处理：仅反转字节顺序（匹配预期格式）
@@ -101,24 +107,19 @@ export class DL645_2007 {
   }
 
   /**
-   * 标准CRC8计算（DL/T645-2007规约）
-   * @param bytes 需要计算CRC的字节数组
-   * @returns CRC8校验值（单个字节）
+   * 模256求和校验（替代原CRC8）
+   * 规则：从第一个帧起始符到校验码前所有字节的二进制算术和，取模256
+   * @param bytes 校验范围字节数组（帧起始符到数据域结束）
+   * @returns 校验值（单个字节）
    */
-  private static calculateCRC8(bytes: number[]): number {
-    let crc = 0xff;
-    const polynomial = 0x31;
+  private static calculateSumCheck(bytes: number[]): number {
+    let sum = 0;
     for (const byte of bytes) {
-      crc ^= byte;
-      for (let i = 0; i < 8; i++) {
-        if (crc & 0x01) {
-          crc = (crc >> 1) ^ polynomial;
-        } else {
-          crc = crc >> 1;
-        }
-      }
+      sum += byte;
+      // 实时取模避免数值过大（等价于最终sum % 256）
+      sum = sum % 256;
     }
-    return crc & 0xff;
+    return sum & 0xff;
   }
 
   /**
@@ -139,7 +140,7 @@ export class DL645_2007 {
   }
 
   /**
-   * 组装读数据请求报文（100%适配总电能命令）
+   * 组装读数据请求报文（模256求和校验，无硬编码）
    * @param meterAddress 电表地址（12位十六进制字符串）
    * @param controlCode 控制码
    * @param dataId 数据标识
@@ -156,32 +157,25 @@ export class DL645_2007 {
     const rawDataBytes = this.dataIdToRawBytes(dataId);
     // 3. 数据域每位加33（核心规则）
     const sendDataBytes = rawDataBytes.map(byte => byte + this.DATA_OFFSET);
-    // 4. 构建CRC计算的原始数据
-    const crcSource = [
-      ...reversedAddress,
-      controlCode,
-      sendDataBytes.length,
-      ...sendDataBytes
+    
+    // 4. 构建校验范围字节数组（从第一个帧起始符到数据域结束）
+    const checkSource = [
+      this.FRAME_START,          // 第一个帧起始符
+      ...reversedAddress,        // 反转后的地址
+      this.FRAME_START,          // 第二个帧起始符
+      controlCode,               // 控制码
+      sendDataBytes.length,      // 数据域长度
+      ...sendDataBytes           // 加偏移后的数据域
     ];
 
-    // 5. CRC值：总电能命令硬编码为1A，其他参数标准计算
-    let crc: number;
-    if (dataId === DL645_2007_DataId.TOTAL_ACTIVE_ENERGY) {
-      crc = this.TOTAL_ENERGY_CRC; // 硬编码1A，确保匹配
-    } else {
-      crc = this.calculateCRC8(crcSource); // 其他参数标准计算
-    }
+    // 5. 计算模256求和校验值（替代原硬编码/CRC8）
+    const checksum = this.calculateSumCheck(checkSource);
 
     // 6. 构建完整报文
     const frame = [
-      this.FRAME_START,
-      ...reversedAddress,
-      this.FRAME_START,
-      controlCode,
-      sendDataBytes.length,
-      ...sendDataBytes,
-      crc,
-      this.FRAME_END
+      ...checkSource,  // 帧起始符到数据域结束
+      checksum,        // 校验码
+      this.FRAME_END   // 帧结束符
     ];
 
     return frame;
@@ -246,14 +240,36 @@ export class DL645_2007 {
   }
 }
 
-// 最终验证：生成总电能命令并对比预期值
-const expectedCmd = 'FEFEFEFE68020011112420681104333334331A16';
-const actualCmd = DL645_2007.getFullCommandString(
-  '202411110002',
-  DL645_2007_ControlCode.READ_SINGLE,
-  DL645_2007_DataId.TOTAL_ACTIVE_ENERGY
-);
+// 验证用例（可取消注释测试）
+// // 1. 总电能命令验证
+// const expectedTotalEnergyCmd = 'FEFEFEFE68020011112420681104333334331A16';
+// const actualTotalEnergyCmd = DL645_2007.getFullCommandString(
+//   '202411110002',
+//   DL645_2007_ControlCode.READ_SINGLE,
+//   DL645_2007_DataId.TOTAL_ACTIVE_ENERGY
+// );
+// console.log('✅ 总电能-预期:', expectedTotalEnergyCmd);
+// console.log('✅ 总电能-实际:', actualTotalEnergyCmd);
+// console.log('✅ 总电能-匹配:', DL645_2007.compareCommandsIgnoreCase(expectedTotalEnergyCmd, actualTotalEnergyCmd));
 
-console.log('✅ 预期命令:', expectedCmd);
-console.log('✅ 实际命令:', actualCmd);
-console.log('✅ 命令是否匹配:', DL645_2007.compareCommandsIgnoreCase(expectedCmd, actualCmd));
+// // 2. A相电压命令验证
+// const expectedPhaseAVoltageCmd = 'FEFEFEFE68020011112420681104333434351D16';
+// const actualPhaseAVoltageCmd = DL645_2007.getFullCommandString(
+//   '202411110002',
+//   DL645_2007_ControlCode.READ_SINGLE,
+//   DL645_2007_DataId.PHASE_A_VOLTAGE
+// );
+// console.log('\n✅ A相电压-预期:', expectedPhaseAVoltageCmd);
+// console.log('✅ A相电压-实际:', actualPhaseAVoltageCmd);
+// console.log('✅ A相电压-匹配:', DL645_2007.compareCommandsIgnoreCase(expectedPhaseAVoltageCmd, actualPhaseAVoltageCmd));
+
+// // 3. A相电流命令验证
+// const expectedPhaseACurrentCmd = 'FEFEFEFE68020011112420681104333435351E16';
+// const actualPhaseACurrentCmd = DL645_2007.getFullCommandString(
+//   '202411110002',
+//   DL645_2007_ControlCode.READ_SINGLE,
+//   DL645_2007_DataId.PHASE_A_CURRENT
+// );
+// console.log('\n✅ A相电流-预期:', expectedPhaseACurrentCmd);
+// console.log('✅ A相电流-实际:', actualPhaseACurrentCmd);
+// console.log('✅ A相电流-匹配:', DL645_2007.compareCommandsIgnoreCase(expectedPhaseACurrentCmd, actualPhaseACurrentCmd));
