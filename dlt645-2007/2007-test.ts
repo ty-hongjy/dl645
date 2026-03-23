@@ -3,13 +3,13 @@
  * @Autor: name
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-23 10:42:06
+ * @LastEditTime: 2026-03-23 10:55:30
  */
 /**
  * DL/T645-2007 命令验证测试程序
  * 验证地址202411110002的电压/总电能命令是否匹配预期值
  */
-import { DL645_2007, DL645_2007_ControlCode, DL645_2007_DataId } from './dl645-2007';
+import { DL645_2007, DL645_2007_ControlCode, DL645_2007_DataId } from './dlt645-2007';
 
 // 测试配置
 const TEST_METER_ADDRESS = '202411110002'; 
