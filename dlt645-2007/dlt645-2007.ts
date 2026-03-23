@@ -4,7 +4,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-23 17:11:45
+ * @LastEditTime: 2026-03-23 17:43:05
  */
 
 // 数据标识枚举（8位十六进制格式）
@@ -77,14 +77,12 @@ const DATA_CONFIG = {
   },
   DATA_OFFSET: 0x33, // 33H 数据偏移量
 };
-/**
- * DL/T645-2007 数据域解析核心工具
- */
+
 export const DL645_2007_DATA = {
   // 数据标识字典（智能电表常见参数）
   DATA_ID_MAP: {
-    '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.001 }, // 单位换算：原始值÷1000
-    '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },          // 原始值÷10
+    '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.001 },
+    '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },
     '02010200': { name: 'B相电压', unit: 'V', scale: 0.1 },
     '02010300': { name: 'C相电压', unit: 'V', scale: 0.1 },
     '02020100': { name: 'A相电流', unit: 'A', scale: 0.001 },
@@ -106,7 +104,6 @@ export const DL645_2007_DATA = {
   decodeDataBytes(dataBytes: number[]): number[] {
     return dataBytes.map(byte => {
       const decoded = byte - this.DATA_OFFSET;
-      // 处理减33H后负数的情况（如0x32-0x33=-1 → 0xFF）
       return decoded < 0 ? decoded + 256 : decoded;
     });
   },
@@ -121,51 +118,55 @@ export const DL645_2007_DATA = {
   },
 
   /**
-   * 小端字节序转数值（低字节在前→高字节在后）
-   * @param bytes 小端字节序的字节数组
-   * @returns 十进制数值
+   * 小端字节序转数值（纯十进制位拼接，非十六进制）
+   * @param bytes 减33H后的小端字节数组
+   * @returns 十进制拼接结果
    */
   littleEndianToNumber(bytes: number[]): number {
-    // 反转字节序（低字节在前→高字节在前）→ 拼接十六进制 → 转十进制
-    return parseInt([...bytes].reverse().map(b => b.toString(16).padStart(2, '0')).join(''), 16);
+    if (bytes.length === 0) return 0;
+    const reversedBytes = [...bytes].reverse();
+    let rawValue = 0;
+    for (const byte of reversedBytes) {
+      rawValue = rawValue * 100 + byte; // 十进制位累加
+    }
+    return rawValue;
   },
 
-/**
- * 解析数据域（核心方法）
- * @param controlCode 控制码（用于判断数据域结构）
- * @param dataBytes 接收的原始数据域字节（未减33H）
- * @returns 解析结果
-**/
+  /**
+   * 解析数据域（核心方法）
+   * @param controlCode 控制码（用于判断数据域结构）
+   * @param dataBytes 接收的原始数据域字节（未减33H）
+   * @returns 解析结果
+   */
+  parseDataField(controlCode: number, dataBytes: number[]): ParameterResult {
+    // 步骤1：还原数据域（减33H）
+    const decodedBytes = this.decodeDataBytes(dataBytes);
+    
+    // 步骤2：按控制码判断数据域结构（读命令：数据标识(4字节)+数据(N字节)）
+    const originalControlCode = controlCode & 0x7F; // 去掉应答位0x80
+    if (originalControlCode !== 0x11) { // 仅处理读单个数据命令
+      throw new Error(`暂不支持控制码0x${controlCode.toString(16)}的数据域解析`);
+    }
 
- parseDataField(controlCode: number, dataBytes: number[]): ParameterResult {
-  // 步骤1：还原数据域（减33H）
-  const decodedBytes = this.decodeDataBytes(dataBytes);
-  
-  // 步骤2：按控制码判断数据域结构（读命令：数据标识(4字节)+数据(N字节)）
-  const originalControlCode = controlCode & 0x7F; // 去掉应答位0x80
-  if (originalControlCode !== 0x11) { // 仅处理读单个数据命令
-    throw new Error(`暂不支持控制码0x${controlCode.toString(16)}的数据域解析`);
+    // 步骤3：提取数据标识（前4字节）→ 反转字节序
+    const dataIdBytesDecoded = decodedBytes.slice(0, 4);
+    const dataIdBytesReversed = [...dataIdBytesDecoded].reverse();
+    const dataId = dataIdBytesReversed.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
+
+    // 步骤4：提取数据（数据标识后所有字节），十进制拼接
+    const valueBytes = decodedBytes.slice(4);
+    const rawValue = this.littleEndianToNumber(valueBytes);
+    const value = rawValue * dataIdConfig.scale; // 单位换算
+
+    return {
+      dataId,
+      name: dataIdConfig.name,
+      rawValue,
+      value,
+      unit: dataIdConfig.unit
+    };
   }
-
-  // 步骤3：提取数据标识（前4字节）→ 反转字节序（核心修复：增加反转）
-  const dataIdBytesDecoded = decodedBytes.slice(0, 4); // 减33H后的数据标识字节
-  const dataIdBytesReversed = [...dataIdBytesDecoded].reverse(); // 关键：反转字节序
-  const dataId = dataIdBytesReversed.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-  const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
-
-  // 步骤4：提取数据（数据标识后所有字节），小端转数值
-  const valueBytes = decodedBytes.slice(4);
-  const rawValue = this.littleEndianToNumber(valueBytes);
-  const value = rawValue * dataIdConfig.scale; // 单位换算
-
-  return {
-    dataId,
-    name: dataIdConfig.name,
-    rawValue,
-    value,
-    unit: dataIdConfig.unit
-  };
-}
 };
 
 /**
@@ -533,7 +534,7 @@ function decodeByte(byte: number): number {
  * @param dataBytes 原始数据域字节数组（数据标识4字节 + 数据N字节，未减33H）
  * @returns 解析结果
  */
-export function parseDL645DataField(dataBytes: number[]): DL645ParseResult {
+export function parseDL645DataFielda(dataBytes: number[]): DL645ParseResult {
   // 1. 校验输入长度（至少包含4字节数据标识）
   if (dataBytes.length < 4) {
     throw new Error('数据域字节数不能少于4（至少包含数据标识）');
@@ -582,7 +583,60 @@ export function parseDL645DataField(dataBytes: number[]): DL645ParseResult {
     unit: config.unit,
     scale: config.scale
   };
-}//   export interface DL645ParseResult {
+}
+
+export function parseDL645DataField(dataBytes: number[]): DL645ParseResult {
+  // 1. 校验输入长度（至少包含4字节数据标识）
+  if (dataBytes.length < 4) {
+    throw new Error('数据域字节数不能少于4（至少包含数据标识）');
+  }
+
+  // 2. 拆分数据标识和数据部分
+  const dataIdRaw = dataBytes.slice(0, 4);  // 原始数据标识字节（4字节，未减33H）
+  const dataRaw = dataBytes.slice(4);      // 原始数据部分字节（N字节，未减33H）
+
+  // 3. 数据标识处理：先减33H → 再反转字节序
+  const dataIdDecoded = dataIdRaw.map(decodeByte); // 第一步：减33H还原
+  const dataIdReversed = [...dataIdDecoded].reverse(); // 第二步：反转4字节
+
+  // 4. 生成标准dataId（8位十六进制，大写，如02010100）
+  const dataId = dataIdReversed
+    .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+    .join('') as DataId;
+
+  // 5. 数据部分处理：减33H → 反转 → 十进制拼接（核心修复：移除十六进制逻辑）
+  const dataDecoded = dataRaw.map(decodeByte);     // 数据部分减33H
+  const dataReversed = [...dataDecoded].reverse(); // 数据部分反转（小端→大端）
+
+  // 6. 数据部分转十进制数值（纯十进制位拼接，非十六进制）
+  let rawValue = 0;
+  for (const byte of dataReversed) {
+    rawValue = rawValue * 100 + byte; // 按两位十进制位拼接
+  }
+
+  // 7. 匹配数据标识配置
+  const config = DATA_CONFIG.DATA_ID_MAP[dataId] || {
+    name: '未知参数',
+    unit: '',
+    scale: 1
+  };
+  const actualValue = rawValue * config.scale;
+
+  // 8. 组装返回结果
+  return {
+    dataId,
+    dataIdName: config.name,
+    rawBytes: [...dataBytes],
+    decodedBytes: dataDecoded,
+    reversedBytes: dataReversed,
+    rawValue,
+    actualValue,
+    unit: config.unit,
+    scale: config.scale
+  };
+}
+
+//   export interface DL645ParseResult {
 //   dataId: string;        // 8位数据标识（十六进制）
 //   dataIdName: string;    // 数据标识名称
 //   rawBytes: number[];    // 原始输入字节（未减33H）
