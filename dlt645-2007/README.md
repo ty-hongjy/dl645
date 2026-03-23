@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2025-12-24 09:08:31
  * @LastEditors: name
- * @LastEditTime: 2026-02-13 15:08:42
+ * @LastEditTime: 2026-03-19 09:48:49
 -->
 # DL645-2007 协议解析库
 ##  dl645-2007 协议解析库部分说明
@@ -52,6 +52,18 @@ flowchart TD
     F --> G[输出解析结果]
     G --> H[调用close()关闭串口]
 
+### 完整数据映射：补充了电流、功率、控制命令的 BCD 码映射和 CRC 值，覆盖所有枚举类型；
+CRC 校验算法：实现 DL/T645-2007 标准 CRC 计算，用于解析报文时校验完整性；
+报文解析能力：新增parseResponse方法，可解析电表返回的报文，提取地址、控制码、数值、单位等信息；
+数值解析：实现parseValue方法，将电表返回的 BCD 码转换为实际物理值（如电压 220.0V、电流 5.00A）；
+反向映射：新增reverseDataIdMapping方法，从 BCD 码字节数组恢复原始数据标识；
+通信模拟：新增simulateCommunication方法，模拟 485 通信交互流程，便于测试；
+用法示例：提供完整的使用示例，包括命令构建、模拟通信、命令对比、控制命令构建等。
+使用方式
+构建读数据命令：调用getFullCommandString传入地址、控制码、数据标识；
+解析电表返回：调用parseResponse传入返回的十六进制字符串；
+模拟测试：调用simulateCommunication模拟完整交互；
+命令对比：调用compareCommandsIgnoreCase忽略大小写对比命令。
 
 ## 注意：
 编译时需要开启降级迭代编译选项，否则无法正确处理异步操作：
