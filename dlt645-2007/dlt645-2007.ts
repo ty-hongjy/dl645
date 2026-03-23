@@ -4,7 +4,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-23 11:09:46
+ * @LastEditTime: 2026-03-23 12:35:28
  */
 
 
@@ -239,4 +239,132 @@ export class DL645_2007 {
   static compareCommandsIgnoreCase(cmd1: string, cmd2: string): boolean {
     return cmd1.toUpperCase() === cmd2.toUpperCase();
   }
+
+/**
+ * 解析DL/T645-2007完整数据帧
+ * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
+ * @returns 解析结果（含地址、控制码、参数、CRC校验结果）
+ */
+static parseFrame(frameBytes: Buffer | number[]): ParseResult {
+  // 统一转换为number[]（兼容Buffer输入）
+  const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
+  
+  // 1. 基础帧结构校验
+  if (bytes.length < 14) { // 最小帧长度：68 + 6地址 + 68 + 控制码 + 长度 + 数据 + 校验 + 16
+    throw new Error('帧长度过短，不符合DL/T645-2007格式');
+  }
+  if (bytes[0] !== this.FRAME_START || bytes[7] !== this.FRAME_START) {
+    throw new Error('帧起始符错误，必须以68开头且地址后紧跟68');
+  }
+  if (bytes[bytes.length - 1] !== this.FRAME_END) {
+    throw new Error('帧结束符错误，必须以16结尾');
+  }
+
+  // 2. 提取核心字段
+  const reversedAddressBytes = bytes.slice(1, 7); // 反转后的地址（6字节）
+  const controlCode = bytes[8]; // 控制码（第9字节）
+  const dataLen = bytes[9]; // 数据域长度（第10字节）
+  const dataFieldBytes = bytes.slice(10, 10 + dataLen); // 原始数据域字节
+  const checksum = bytes[10 + dataLen]; // 校验码
+  const meterAddress = this.restoreAddress(reversedAddressBytes); // 恢复原始地址
+
+  // 3. 校验码验证（模256求和）
+  const checkSource = bytes.slice(0, 10 + dataLen); // 校验范围：从第一个68到数据域结束
+  const calculatedChecksum = this.calculateSumCheck(checkSource);
+  const isCrcValid = calculatedChecksum === checksum;
+
+  // 4. 解析控制码名称
+  let controlCodeName = '未知控制码';
+  switch (controlCode) {
+    case DL645_2007_ControlCode.READ_SINGLE:
+      controlCodeName = '读单个数据';
+      break;
+    case DL645_2007_ControlCode.READ_BATCH:
+      controlCodeName = '批量读数据';
+      break;
+    case DL645_2007_ControlCode.CONTROL:
+      controlCodeName = '控制命令';
+      break;
+  }
+
+  // 5. 解析数据域（按数据标识拆分+解析）
+  const parameters: ParameterResult[] = [];
+  let offset = 0;
+  while (offset < dataFieldBytes.length) {
+    // 数据域格式：每个参数=4字节数据标识 + N字节数值（此处按4字节标识+4字节数值解析，可按需扩展）
+    if (offset + 8 > dataFieldBytes.length) break; // 剩余字节不足，终止解析
+    
+    // 提取4字节数据标识（反转后匹配枚举）
+    const dataIdBytes = dataFieldBytes.slice(offset, offset + 4);
+    const dataIdHex = dataIdBytes.reverse().map(b => b.toString(16).padStart(2, '0')).join('');
+    const dataId = dataIdHex as DL645_2007_DataId; // 匹配枚举
+    
+    // 提取数值字节（4字节，可根据实际场景调整长度）
+    const valueBytes = dataFieldBytes.slice(offset + 4, offset + 8);
+    const param = this.parseDataField(valueBytes, dataId);
+    parameters.push(param);
+    
+    offset += 8; // 下一个参数（标识4字节+数值4字节）
+  }
+
+  // 6. 返回解析结果
+  return {
+    meterAddress,
+    controlCode: controlCode.toString(16).padStart(2, '0').toUpperCase(),
+    controlCodeName,
+    parameters,
+    isCrcValid
+  };
+}
+
+  /**
+ * 解析DL/T645-2007数据域（低字节在前+加减33H）
+ * @param dataBytes 数据域原始字节数组（已去除控制码、长度位）
+ * @param dataId 数据标识（匹配解析规则）
+ * @returns 解析后的参数结果
+ */
+static parseDataField(dataBytes: number[], dataId: DL645_2007_DataId): ParameterResult {
+  // 1. 数据域字节减33H（0x33）恢复原始值
+  const restoredBytes = dataBytes.map(byte => byte - DL645_2007['DATA_OFFSET']);
+  
+  // 2. 按低字节在前、高字节在后拼接数值（小端序）
+  let rawValueHex = restoredBytes.map(byte => byte.toString(16).padStart(2, '0').toUpperCase()).join('');
+  let numericValue = 0;
+  
+  // 3. 根据数据标识匹配解析规则（以总电能为例）
+  switch (dataId) {
+    case DL645_2007_DataId.TOTAL_ACTIVE_ENERGY:
+      // 总电能：4字节 → 数值 = 拼接后数值 × 0.01（分辨率）
+      numericValue = parseInt(rawValueHex, 16) * 0.01;
+      return {
+        name: '总正有功电能',
+        rawValue: rawValueHex,
+        value: numericValue,
+        unit: 'kWh',
+        dataId: dataId
+      };
+
+    case DL645_2007_DataId.PHASE_A_VOLTAGE:
+      // 电压：4字节 → 数值 = 拼接后数值 × 0.1（分辨率，示例）
+      numericValue = parseInt(rawValueHex, 16) * 0.1;
+      return {
+        name: 'A相电压',
+        rawValue: rawValueHex,
+        value: numericValue,
+        unit: 'V',
+        dataId: dataId
+      };
+
+    default:
+      // 通用数值解析（无分辨率）
+      numericValue = parseInt(rawValueHex, 16);
+      return {
+        name: '未知参数',
+        rawValue: rawValueHex,
+        value: numericValue,
+        unit: '',
+        dataId: dataId
+      };
+  }
+}  
 }
