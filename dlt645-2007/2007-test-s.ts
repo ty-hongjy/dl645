@@ -3,11 +3,11 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-03-23 15:37:25
+ * @LastEditTime: 2026-03-23 16:40:47
  */
 import { SerialPort } from 'serialport';
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
-import { DL645_2007_DATA,parseDataFieldOnly } from './dlt645-2007';
+import { DL645_2007_DATA,parseDataFieldOnly,parseDL645DataFieldFromHex } from './dlt645-2007';
 
 // 串口配置
 const port = new SerialPort({
@@ -39,21 +39,19 @@ function parseMeterResponse(frame: Buffer) {
 
     // 解析DL/T645-2007规约帧
     const parseResult = DL645_2007.parseFrame(dl645Frame);
-
+    //  const parseResult = parseDL645DataFieldFromHex(dl645FrameHex);
     // 输出解析结果
     console.log('\n=== DL/T645-2007 响应解析结果 ===');
-    console.log(`电表地址：${parseResult.meterAddress}`);
-    console.log(`控制码：0x${parseResult.controlCode}（${parseResult.controlCodeName}）`);
-    console.log(`校验结果：${parseResult.isCrcValid ? '✅ 有效' : '❌ 无效'}`);
-    
-    const phaseAVoltage = parseResult.parameters.find(
-      p => p.dataId === DL645_2007_DataId.PHASE_A_VOLTAGE
-    );
-    if (phaseAVoltage) {
-      console.log(`A相电压：${phaseAVoltage.value} ${phaseAVoltage.unit}（原始值：${phaseAVoltage.rawValue}）`);
-    } else {
-      console.log('未解析到A相电压数据');
-    }
+    // console.log(`电表地址：${parseResult.meterAddress}`);
+    // console.log(`控制码：0x${parseResult.controlCode}（${parseResult.controlCodeName}）`);
+    // console.log(`校验结果：${parseResult.isCrcValid ? '✅ 有效' : '❌ 无效'}`);
+    // console.log(`param结果：${parseResult.parameters}`); 
+    console.log('param结果（JSON格式化）：', JSON.stringify(parseResult, null, 2));
+  //   if (phaseAVoltage) {
+  //     console.log(`A相电压：${phaseAVoltage.value} ${phaseAVoltage.unit}（原始值：${phaseAVoltage.rawValue}）`);
+  //   } else {
+  //     console.log('未解析到A相电压数据');
+  //   }
   } catch (parseErr) {
     console.error('帧解析失败:', (parseErr as Error).message);
     console.error('失败帧数据:', frame.toString('hex').toUpperCase());
@@ -97,14 +95,14 @@ function openPortAndSendCommand() {
 
 // 串口数据监听
 port.on('data', (data: Buffer) => {
-  const phaseAVoltageBytes = [0x45, 0x33, 0x33, 0x33]; // 原始数据域字节（未减33H）
-  const voltageResult = parseDataFieldOnly(phaseAVoltageBytes, DL645_2007_DataId.PHASE_A_VOLTAGE);
-  console.log('A相电压解析结果：', voltageResult);
+//   const phaseAVoltageBytes = [0x45, 0x33, 0x33, 0x33]; // 原始数据域字节（未减33H）
+//   const voltageResult = parseDataFieldOnly(phaseAVoltageBytes, DL645_2007_DataId.PHASE_A_VOLTAGE);
+//   console.log('A相电压解析结果：', voltageResult);
 
-// 示例2：解析总电能数据域
-const totalEnergyBytes = [0x34, 0x33, 0x34, 0x33]; // 原始数据域字节（未减33H）
-const energyResult = parseDataFieldOnly(totalEnergyBytes, DL645_2007_DataId.TOTAL_ACTIVE_ENERGY);
-console.log('总电能解析结果：', energyResult);
+// // 示例2：解析总电能数据域
+// const totalEnergyBytes = [0x34, 0x33, 0x34, 0x33]; // 原始数据域字节（未减33H）
+// const energyResult = parseDataFieldOnly(totalEnergyBytes, DL645_2007_DataId.TOTAL_ACTIVE_ENERGY);
+// console.log('总电能解析结果：', energyResult);
   console.log(`\n收到原始数据（长度：${data.length}字节）: ${data.toString('hex').toUpperCase()}`);
   
   // 拼接缓存
