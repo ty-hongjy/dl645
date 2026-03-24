@@ -4,7 +4,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-24 09:56:32
+ * @LastEditTime: 2026-03-24 12:42:47
  */
 
 // 数据标识枚举（8位十六进制格式）
@@ -62,7 +62,7 @@ export interface ParseResult {
 // // 数据解析核心配置（复用）
 const DATA_CONFIG = {
   DATA_ID_MAP: {
-    '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.001 },
+    '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.1 },
     '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },
     '02010200': { name: 'B相电压', unit: 'V', scale: 0.1 },
     '02010300': { name: 'C相电压', unit: 'V', scale: 0.1 },
@@ -81,7 +81,7 @@ const DATA_CONFIG = {
 export const DL645_2007_DATA = {
   // 数据标识字典（智能电表常见参数）
   DATA_ID_MAP: {
-    '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.001 },
+    '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.01 },
     '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },
     '02010200': { name: 'B相电压', unit: 'V', scale: 0.1 },
     '02010300': { name: 'C相电压', unit: 'V', scale: 0.1 },
@@ -137,21 +137,64 @@ export const DL645_2007_DATA = {
    * @param bytes 已还原（整体减33H）的字节数组
    * @returns 按BCD逐位减33H后的数值
    */
-  bcdDecodeWithOffset(bytes: number[]): number {
-    let bcdValue = 0;
-    for (const byte of bytes) {
-      // BCD码拆分为高低4位，逐位减0x3（33H的BCD位偏移是0x3）
-      const highNibble = (byte >> 4) - 0x3; // 高4位减3
-      const lowNibble = (byte & 0x0F) - 0x3; // 低4位减3
-      // 处理溢出（如减3后为负则补10）
-      const correctedHigh = highNibble < 0 ? highNibble + 10 : highNibble;
-      const correctedLow = lowNibble < 0 ? lowNibble + 10 : lowNibble;
-      // 拼接BCD位为十进制
-      bcdValue = bcdValue * 100 + correctedHigh * 10 + correctedLow;
-    }
-    return bcdValue;
-  },
+  // bcdDecodeWithOffset(bytes: number[]): number {
+  //   let bcdValue = 0;
+  //   for (const byte of bytes) {
+  //     // BCD码拆分为高低4位，逐位减0x3（33H的BCD位偏移是0x3）
+  //     const highNibble = (byte >> 4) - 0x3; // 高4位减3
+  //     const lowNibble = (byte & 0x0F) - 0x3; // 低4位减3
+  //     console.log(`H:${highNibble}L:${lowNibble}`)
+  //     // 处理溢出（如减3后为负则补10）
+  //     const correctedHigh = highNibble < 0 ? highNibble + 10 : highNibble;
+  //     const correctedLow = lowNibble < 0 ? lowNibble + 10 : lowNibble;
+  //     // 拼接BCD位为十进制
+  //     bcdValue = bcdValue * 100 + correctedHigh * 10 + correctedLow;
+  //   }
+  //   // let hexArr = bcdValue.map(n => n.toString(16).padStart(2, '0').toUpperCase());
+  //   let hexArr = bcdValue.toString(16).padStart(4, '0').toUpperCase();
+  //   // let bcdValue1 = parseInt(hexArr.join(''), 16)
+  //   console.log(`BCD:${hexArr}`,)
+  //   return bcdValue;
+  // },
 
+
+  /**
+ * BCD码逐位减33H（DL/T645-2007专属规则）
+ * 严格流程：字节 → 16进制BCD码（高低4位）→ 逐位减0x3 → 修正溢出 → 转十进制
+ * @param bytes 已还原（整体减33H）的字节数组
+ * @returns 最终十进制数值
+ */
+  // bcdDecodeWithOffset2(bytes: number[]): number {
+  //   let finalDecimalValue = 0;
+
+  //   for (const byte of bytes) {
+  //     // 步骤1：拆分字节为16进制BCD高低4位（原始BCD码）
+  //     const highNibbleHex = (byte >> 4) & 0x0F; // 高4位（16进制BCD）
+  //     const lowNibbleHex = byte & 0x0F;         // 低4位（16进制BCD）
+
+  //     // 步骤2：DL/T645-2007规则：BCD位逐位减0x3（33H的BCD位偏移）
+  //     let highNibbleMinus3 = highNibbleHex - 0x3;
+  //     let lowNibbleMinus3 = lowNibbleHex - 0x3;
+
+  //     // 步骤3：处理溢出（减3后为负则补10，保证BCD位合法）
+  //     highNibbleMinus3 = highNibbleMinus3 < 0 ? highNibbleMinus3 + 10 : highNibbleMinus3;
+  //     lowNibbleMinus3 = lowNibbleMinus3 < 0 ? lowNibbleMinus3 + 10 : lowNibbleMinus3;
+
+  //     // 步骤4：16进制BCD码转十进制（拼接高低位）
+  //     const byteDecimal = highNibbleMinus3 * 10 + lowNibbleMinus3;
+
+  //     // 步骤5：拼接所有字节的十进制值
+  //     finalDecimalValue = finalDecimalValue * 100 + byteDecimal;
+
+  //     // 调试日志（可选）
+  //     // console.log(`原始字节: 0x${byte.toString(16).padStart(2, '0')} → BCD高低位: 0x${highNibbleHex.toString(16)}/${0x${lowNibbleHex.toString(16)}} -> 减3后: ${highNibbleMinus3}/${lowNibbleMinus3} → 十进制: ${byteDecimal}`);
+  //   }
+
+  //   return finalDecimalValue;
+  // },
+
+
+  
   /**
    * 解析数据域（核心方法）
    * @param controlCode 控制码（用于判断数据域结构）
@@ -161,7 +204,7 @@ export const DL645_2007_DATA = {
   parseDataField(controlCode: number, dataBytes: number[]): ParameterResult {
     // 步骤1：还原数据域（减33H）
     const decodedBytes = this.decodeDataBytes(dataBytes);
-    
+
     // 步骤2：按控制码判断数据域结构（读命令：数据标识(4字节)+数据(N字节)）
     const originalControlCode = controlCode & 0x7F; // 去掉应答位0x80
     if (originalControlCode !== 0x11) { // 仅处理读单个数据命令
@@ -174,20 +217,14 @@ export const DL645_2007_DATA = {
     const dataId = dataIdBytesReversed.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
     const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
 
-    // // 步骤4：提取数据（数据标识后所有字节），十进制拼接
-    // const valueBytes = decodedBytes.slice(4);
-    // console.log('数据域字节：', valueBytes);
-    // const rawValue = this.littleEndianToNumber(valueBytes);
-    // const value = rawValue * dataIdConfig.scale; // 单位换算
-
   // 步骤4：提取数据（数据标识后所有字节），BCD格式逐位减33H + 十进制拼接
     const valueBytes = decodedBytes.slice(4);
-    console.log('数据域字节（整体减33H后）：', valueBytes);
-    
-    // 核心修正：BCD逐位减33H（33H的BCD位是0x3和0x3，所以逐位减0x3）
-    const rawValue = this.bcdDecodeWithOffset(valueBytes);
-    // 单位换算（保留原有scale逻辑）
-    const value = rawValue * dataIdConfig.scale;     
+    console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
+    let v1=valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    // let v2=v1.split('').map(b => parseInt(b, 16)).reverse();
+    console.log('2数据域字节（逐位减33H后）：', v1);
+    const rawValue = parseInt(v1);    // 单位换算（保留原有scale逻辑）
+    const value = parseInt(v1) * dataIdConfig.scale;
 
     return {
       dataId,
@@ -491,9 +528,9 @@ export interface DL645ParseResult {
  * @param byte 原始字节
  * @returns 偏移后字节
  */
-function decodeByte(byte: number): number {
-  const decoded = byte - DATA_CONFIG.DATA_OFFSET;
+// // function decodeByte(byte: number): number {
+// //   const decoded = byte - DATA_CONFIG.DATA_OFFSET;
   
-  return decoded < 0 ? decoded + 256 : decoded;
-}
+// //   return decoded < 0 ? decoded + 256 : decoded;
+// }
 
