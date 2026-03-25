@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-25 11:00:32
+ * @LastEditTime: 2026-03-25 14:09:29
  */
 
 // 数据标识枚举（8位十六进制格式）
@@ -62,7 +62,7 @@ export interface ParseResult {
  */
 export class DL645_2007 {
   static readonly DATA_ID_MAP = {
-    '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.1 },
+    '00000000': { name: '组合总有功电能', unit: 'kWh', scale: 0.01 },
     '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },
     '02010200': { name: 'B相电压', unit: 'V', scale: 0.1 },
     '02010300': { name: 'C相电压', unit: 'V', scale: 0.1 },

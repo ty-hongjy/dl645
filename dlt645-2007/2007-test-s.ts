@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-03-25 11:00:51
+ * @LastEditTime: 2026-03-25 14:09:02
  */
 import { SerialPort } from 'serialport';
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
@@ -75,8 +75,9 @@ function openPortAndSendCommand() {
     const commandBytes = DL645_2007.buildReadRequest(
       TEST_METER_ADDRESS,
       DL645_2007_ControlCode.READ_SINGLE,
-      DL645_2007_DataId.PHASE_A_VOLTAGE
+      // DL645_2007_DataId.PHASE_A_VOLTAGE
       // DL645_2007_DataId.PHASE_A_CURRENT
+      DL645_2007_DataId.COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION
     );
 
     // 拼接485帧头并发送
