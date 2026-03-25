@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-25 10:32:18
+ * @LastEditTime: 2026-03-25 11:00:32
  */
 
 // 数据标识枚举（8位十六进制格式）
@@ -57,10 +57,11 @@ export interface ParseResult {
   isCrcValid: boolean;
 }
 
-
-// // 数据解析核心配置（复用）
-const DATA_CONFIG = {
-  DATA_ID_MAP: {
+/**
+ * DL/T645-2007 核心实现类（模256求和校验，无硬编码）
+ */
+export class DL645_2007 {
+  static readonly DATA_ID_MAP = {
     '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.1 },
     '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },
     '02010200': { name: 'B相电压', unit: 'V', scale: 0.1 },
@@ -73,96 +74,8 @@ const DATA_CONFIG = {
     '02030300': { name: 'C相有功功率', unit: 'kW', scale: 0.01 },
     '00010000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
     '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 }
-  },
-  DATA_OFFSET: 0x33, // 33H 数据偏移量
-};
+  };
 
-export const DL645_2007_DATA = {
-  // 数据标识字典（智能电表常见参数）
-  DATA_ID_MAP: {
-    '00000000': { name: '总正有功电能', unit: 'kWh', scale: 0.01 },
-    '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },
-    '02010200': { name: 'B相电压', unit: 'V', scale: 0.1 },
-    '02010300': { name: 'C相电压', unit: 'V', scale: 0.1 },
-    '02020100': { name: 'A相电流', unit: 'A', scale: 0.001 },
-    '02020200': { name: 'B相电流', unit: 'A', scale: 0.001 },
-    '02020300': { name: 'C相电流', unit: 'A', scale: 0.001 },
-    '02030100': { name: 'A相有功功率', unit: 'kW', scale: 0.01 },
-    '02030200': { name: 'B相有功功率', unit: 'kW', scale: 0.01 },
-    '02030300': { name: 'C相有功功率', unit: 'kW', scale: 0.01 },
-    '00010000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
-    '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 }
-  },
-  DATA_OFFSET: 0x33, // 33H
-
-  /**
-   * 数据域字节还原（减33H）
-   * @param dataBytes 接收的原始数据域字节数组
-   * @returns 还原后的字节数组
-   */
-  decodeDataBytes(dataBytes: number[]): number[] {
-    return dataBytes.map(byte => {
-      const decoded = byte - this.DATA_OFFSET;
-      return decoded < 0 ? decoded + 256 : decoded;
-    });
-  },
-
-  /**
-   * 数据域字节加密（加33H）
-   * @param dataBytes 原始数据域字节数组
-   * @returns 加密后的字节数组
-   */
-  encodeDataBytes(dataBytes: number[]): number[] {
-    return dataBytes.map(byte => (byte + this.DATA_OFFSET) % 256);
-  },
-
-
- 
-  /**
-   * 解析数据域（核心方法）
-   * @param controlCode 控制码（用于判断数据域结构）
-   * @param dataBytes 接收的原始数据域字节（未减33H）
-   * @returns 解析结果
-   */
-  parseDataField(controlCode: number, dataBytes: number[]): ParameterResult {
-    // 步骤1：还原数据域（减33H）
-    const decodedBytes = this.decodeDataBytes(dataBytes);
-
-    // 步骤2：按控制码判断数据域结构（读命令：数据标识(4字节)+数据(N字节)）
-    const originalControlCode = controlCode & 0x7F; // 去掉应答位0x80
-    if (originalControlCode !== 0x11) { // 仅处理读单个数据命令
-      throw new Error(`暂不支持控制码0x${controlCode.toString(16)}的数据域解析`);
-    }
-
-    // 步骤3：提取数据标识（前4字节）→ 反转字节序
-    const dataIdBytesDecoded = decodedBytes.slice(0, 4);
-    const dataIdBytesReversed = [...dataIdBytesDecoded].reverse();
-    const dataId = dataIdBytesReversed.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-    const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
-
-  // 步骤4：提取数据（数据标识后所有字节），BCD格式逐位减33H + 十进制拼接
-    const valueBytes = decodedBytes.slice(4);
-    console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
-    let v1=valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-    // let v2=v1.split('').map(b => parseInt(b, 16)).reverse();
-    console.log('2数据域字节（逐位减33H后）：', v1);
-    const rawValue = parseInt(v1);    // 单位换算（保留原有scale逻辑）
-    const value = parseInt(v1) * dataIdConfig.scale;
-
-    return {
-      dataId,
-      name: dataIdConfig.name,
-      rawValue,
-      value,
-      unit: dataIdConfig.unit
-    };
-  }
-};
-
-/**
- * DL/T645-2007 核心实现类（模256求和校验，无硬编码）
- */
-export class DL645_2007 {
   // 帧起始符
   private static readonly FRAME_START = 0x68;
   // 帧结束符
@@ -344,7 +257,70 @@ export class DL645_2007 {
     return cmd1.toUpperCase() === cmd2.toUpperCase();
   }
 
-/**
+  /**
+   * 数据域字节还原（减33H）
+   * @param dataBytes 接收的原始数据域字节数组
+   * @returns 还原后的字节数组
+   */
+  static decodeDataBytes(dataBytes: number[]): number[] {
+    return dataBytes.map(byte => {
+      const decoded = byte - this.DATA_OFFSET;
+      return decoded < 0 ? decoded + 256 : decoded;
+    });
+  }
+
+  /**
+   * 数据域字节加密（加33H）
+   * @param dataBytes 原始数据域字节数组
+   * @returns 加密后的字节数组
+   */
+  static encodeDataBytes(dataBytes: number[]): number[] {
+    return dataBytes.map(byte => (byte + this.DATA_OFFSET) % 256);
+  }
+
+
+  /**
+   * 解析数据域
+   * @param controlCode 控制码（用于判断数据域结构）
+   * @param dataBytes 接收的原始数据域字节（未减33H）
+   * @returns 解析结果
+   */
+  static parseDataField(controlCode: number, dataBytes: number[]): ParameterResult {
+    // 步骤1：还原数据域（减33H）
+    const decodedBytes = this.decodeDataBytes(dataBytes);
+
+    // 步骤2：按控制码判断数据域结构（读命令：数据标识(4字节)+数据(N字节)）
+    const originalControlCode = controlCode & 0x7F; // 去掉应答位0x80
+    if (originalControlCode !== 0x11) { // 仅处理读单个数据命令
+      throw new Error(`暂不支持控制码0x${controlCode.toString(16)}的数据域解析`);
+    }
+
+    // 步骤3：提取数据标识（前4字节）→ 反转字节序
+    const dataIdBytesDecoded = decodedBytes.slice(0, 4);
+    const dataIdBytesReversed = [...dataIdBytesDecoded].reverse();
+    const dataId = dataIdBytesReversed.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    // const dataIdConfig = DATA_CONFIG.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
+    const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
+    // const dataIdConfig = DL645_2007.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
+
+  // 步骤4：提取数据（数据标识后所有字节），BCD格式逐位减33H + 十进制拼接
+    const valueBytes = decodedBytes.slice(4);
+    console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
+    let v1=valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    // let v2=v1.split('').map(b => parseInt(b, 16)).reverse();
+    console.log('2数据域字节（逐位减33H后）：', v1);
+    const rawValue = parseInt(v1);    // 单位换算（保留原有scale逻辑）
+    const value = parseInt(v1) * dataIdConfig.scale;
+
+    return {
+      dataId,
+      name: dataIdConfig.name,
+      rawValue,
+      value,
+      unit: dataIdConfig.unit
+    };
+  }
+  /**
  * 解析DL/T645-2007完整数据帧
  * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
  * @returns 解析结果（含地址、控制码、参数、CRC校验结果）
@@ -397,7 +373,7 @@ export class DL645_2007 {
     const parameters: ParameterResult[] = [];
     if (dataLen > 0) {
       try {
-        const dataFieldResult = DL645_2007_DATA.parseDataField(controlCode, dataFieldBytes);
+        const dataFieldResult = this.parseDataField(controlCode, dataFieldBytes);
         parameters.push(dataFieldResult);
       } catch (e) {
         console.warn('数据域解析失败：', (e as Error).message);
@@ -421,4 +397,3 @@ export class DL645_2007 {
     };
   }
 }
-
