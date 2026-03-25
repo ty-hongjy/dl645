@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-25 14:09:29
+ * @LastEditTime: 2026-03-25 16:20:32
  */
 
 // 数据标识枚举（8位十六进制格式）
@@ -170,7 +170,7 @@ export class DL645_2007 {
     const rawDataBytes = this.dataIdToRawBytes(dataId);
     // 3. 数据域每位加33（核心规则）
     const sendDataBytes = rawDataBytes.map(byte => byte + this.DATA_OFFSET);
-    
+
     // 4. 构建校验范围字节数组（从第一个帧起始符到数据域结束）
     const checkSource = [
       this.FRAME_START,          // 第一个帧起始符
@@ -299,18 +299,15 @@ export class DL645_2007 {
     const dataIdBytesDecoded = decodedBytes.slice(0, 4);
     const dataIdBytesReversed = [...dataIdBytesDecoded].reverse();
     const dataId = dataIdBytesReversed.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-    // const dataIdConfig = DATA_CONFIG.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
     const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
-    // const dataIdConfig = DL645_2007.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
 
-  // 步骤4：提取数据（数据标识后所有字节），BCD格式逐位减33H + 十进制拼接
+  // 步骤4：提取数据（数据标识后所有字节），16进制BCD格式转为十进制整数
     const valueBytes = decodedBytes.slice(4);
     console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
     let v1=valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-    // let v2=v1.split('').map(b => parseInt(b, 16)).reverse();
-    console.log('2数据域字节（逐位减33H后）：', v1);
-    const rawValue = parseInt(v1);    // 单位换算（保留原有scale逻辑）
-    const value = parseInt(v1) * dataIdConfig.scale;
+    console.log('数据域字节10进制BCD：', v1);
+    const rawValue = parseInt(v1);
+    const value = rawValue * dataIdConfig.scale;
 
     return {
       dataId,
@@ -320,6 +317,7 @@ export class DL645_2007 {
       unit: dataIdConfig.unit
     };
   }
+
   /**
  * 解析DL/T645-2007完整数据帧
  * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
