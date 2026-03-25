@@ -1,10 +1,9 @@
 /*
  * @Description: DL/T645-2007 多功能电能表通信规约 TypeScript 完整实现
- * 验证地址202411110002的电压/总电能命令是否匹配预期值
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-24 12:42:47
+ * @LastEditTime: 2026-03-25 10:32:18
  */
 
 // 数据标识枚举（8位十六进制格式）
@@ -117,84 +116,8 @@ export const DL645_2007_DATA = {
     return dataBytes.map(byte => (byte + this.DATA_OFFSET) % 256);
   },
 
-  /**
-   * 小端字节序转数值（纯十进制位拼接，非十六进制）
-   * @param bytes 减33H后的小端字节数组
-   * @returns 十进制拼接结果
-   */
-  littleEndianToNumber(bytes: number[]): number {
-    if (bytes.length === 0) return 0;
-    const reversedBytes = [...bytes].reverse();
-    let rawValue = 0;
-    for (const byte of reversedBytes) {
-      rawValue = rawValue * 100 + byte; // 十进制位累加
-    }
-    return rawValue;
-  },
 
-    /**
-   * BCD码逐位减33H（DL/T645-2007专属规则）
-   * @param bytes 已还原（整体减33H）的字节数组
-   * @returns 按BCD逐位减33H后的数值
-   */
-  // bcdDecodeWithOffset(bytes: number[]): number {
-  //   let bcdValue = 0;
-  //   for (const byte of bytes) {
-  //     // BCD码拆分为高低4位，逐位减0x3（33H的BCD位偏移是0x3）
-  //     const highNibble = (byte >> 4) - 0x3; // 高4位减3
-  //     const lowNibble = (byte & 0x0F) - 0x3; // 低4位减3
-  //     console.log(`H:${highNibble}L:${lowNibble}`)
-  //     // 处理溢出（如减3后为负则补10）
-  //     const correctedHigh = highNibble < 0 ? highNibble + 10 : highNibble;
-  //     const correctedLow = lowNibble < 0 ? lowNibble + 10 : lowNibble;
-  //     // 拼接BCD位为十进制
-  //     bcdValue = bcdValue * 100 + correctedHigh * 10 + correctedLow;
-  //   }
-  //   // let hexArr = bcdValue.map(n => n.toString(16).padStart(2, '0').toUpperCase());
-  //   let hexArr = bcdValue.toString(16).padStart(4, '0').toUpperCase();
-  //   // let bcdValue1 = parseInt(hexArr.join(''), 16)
-  //   console.log(`BCD:${hexArr}`,)
-  //   return bcdValue;
-  // },
-
-
-  /**
- * BCD码逐位减33H（DL/T645-2007专属规则）
- * 严格流程：字节 → 16进制BCD码（高低4位）→ 逐位减0x3 → 修正溢出 → 转十进制
- * @param bytes 已还原（整体减33H）的字节数组
- * @returns 最终十进制数值
- */
-  // bcdDecodeWithOffset2(bytes: number[]): number {
-  //   let finalDecimalValue = 0;
-
-  //   for (const byte of bytes) {
-  //     // 步骤1：拆分字节为16进制BCD高低4位（原始BCD码）
-  //     const highNibbleHex = (byte >> 4) & 0x0F; // 高4位（16进制BCD）
-  //     const lowNibbleHex = byte & 0x0F;         // 低4位（16进制BCD）
-
-  //     // 步骤2：DL/T645-2007规则：BCD位逐位减0x3（33H的BCD位偏移）
-  //     let highNibbleMinus3 = highNibbleHex - 0x3;
-  //     let lowNibbleMinus3 = lowNibbleHex - 0x3;
-
-  //     // 步骤3：处理溢出（减3后为负则补10，保证BCD位合法）
-  //     highNibbleMinus3 = highNibbleMinus3 < 0 ? highNibbleMinus3 + 10 : highNibbleMinus3;
-  //     lowNibbleMinus3 = lowNibbleMinus3 < 0 ? lowNibbleMinus3 + 10 : lowNibbleMinus3;
-
-  //     // 步骤4：16进制BCD码转十进制（拼接高低位）
-  //     const byteDecimal = highNibbleMinus3 * 10 + lowNibbleMinus3;
-
-  //     // 步骤5：拼接所有字节的十进制值
-  //     finalDecimalValue = finalDecimalValue * 100 + byteDecimal;
-
-  //     // 调试日志（可选）
-  //     // console.log(`原始字节: 0x${byte.toString(16).padStart(2, '0')} → BCD高低位: 0x${highNibbleHex.toString(16)}/${0x${lowNibbleHex.toString(16)}} -> 减3后: ${highNibbleMinus3}/${lowNibbleMinus3} → 十进制: ${byteDecimal}`);
-  //   }
-
-  //   return finalDecimalValue;
-  // },
-
-
-  
+ 
   /**
    * 解析数据域（核心方法）
    * @param controlCode 控制码（用于判断数据域结构）
@@ -421,116 +344,81 @@ export class DL645_2007 {
     return cmd1.toUpperCase() === cmd2.toUpperCase();
   }
 
-  /**
-   * 解析DL/T645-2007完整数据帧
-   * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
-   * @returns 解析结果（含地址、控制码、参数、CRC校验结果）
-   */
-  /**
- * 解析DL/T645-2007完整数据帧（终版修复）
- * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
- * @returns 解析结果（含地址、控制码、参数、CRC校验结果）
- */
 /**
  * 解析DL/T645-2007完整数据帧
  * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
  * @returns 解析结果（含地址、控制码、参数、CRC校验结果）
  */
-static parseFrame(frameBytes: Buffer | number[]): ParseResult { // 注意返回类型修正为ParseResult
-  // 统一转换为number[]（兼容Buffer输入）
-  const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
-  
-  // 1. 基础帧结构校验
-  if (bytes.length < 14) { // 最小帧长度：68 + 6地址 + 68 + 控制码 + 长度 + 数据 + 校验 + 16
-    throw new Error('帧长度过短，不符合DL/T645-2007格式');
-  }
-  if (bytes[0] !== this.FRAME_START || bytes[7] !== this.FRAME_START) {
-    throw new Error('帧起始符错误，必须以68开头且地址后紧跟68');
-  }
-  if (bytes[bytes.length - 1] !== this.FRAME_END) {
-    throw new Error('帧结束符错误，必须以16结尾');
-  }
+  static parseFrame(frameBytes: Buffer | number[]): ParseResult { // 注意返回类型修正为ParseResult
+    // 统一转换为number[]（兼容Buffer输入）
+    const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
 
-  // 2. 提取核心字段
-  const reversedAddressBytes = bytes.slice(1, 7); // 反转后的地址（6字节）
-  const controlCode = bytes[8]; // 控制码（第9字节）
-  const dataLen = bytes[9]; // 数据域长度（第10字节）
-  const dataFieldBytes = bytes.slice(10, 10 + dataLen); // 原始数据域字节
-  const checksum = bytes[10 + dataLen]; // 校验码
-  const meterAddress = this.restoreAddress(reversedAddressBytes); // 恢复原始地址
-  console.log('原始数据域字节：', dataFieldBytes);
-  
-  // 3. 校验码验证（模256求和）
-  const checkSource = bytes.slice(0, 10 + dataLen); // 校验范围：从第一个68到数据域结束
-  const calculatedChecksum = this.calculateSumCheck(checkSource);
-  const isCrcValid = calculatedChecksum === checksum;
-
-  // 4. 解析控制码名称（修复：兼容应答位0x80）
-  let controlCodeName = '未知控制码';
-  const originalControlCode = controlCode & 0x7F; // 去掉应答位0x80
-  switch (originalControlCode) {
-    case DL645_2007_ControlCode.READ_SINGLE:
-      controlCodeName = '读单个数据';
-      break;
-    case DL645_2007_ControlCode.READ_BATCH:
-      controlCodeName = '批量读数据';
-      break;
-    case DL645_2007_ControlCode.CONTROL:
-      controlCodeName = '控制命令';
-      break;
-  }
-
-  // 5. 解析数据域（删除错误的parseDL645DataFieldFromHex调用，恢复正确逻辑）
-  const parameters: ParameterResult[] = [];
-  if (dataLen > 0) {
-    try {
-      const dataFieldResult = DL645_2007_DATA.parseDataField(controlCode, dataFieldBytes);
-      parameters.push(dataFieldResult);
-    } catch (e) {
-      console.warn('数据域解析失败：', (e as Error).message);
-      parameters.push({
-        name: '解析失败',
-        rawValue: '',
-        value: '',
-        unit: '',
-        dataId: ''
-      });
+    // 1. 基础帧结构校验
+    if (bytes.length < 14) { // 最小帧长度：68 + 6地址 + 68 + 控制码 + 长度 + 数据 + 校验 + 16
+      throw new Error('帧长度过短，不符合DL/T645-2007格式');
     }
+    if (bytes[0] !== this.FRAME_START || bytes[7] !== this.FRAME_START) {
+      throw new Error('帧起始符错误，必须以68开头且地址后紧跟68');
+    }
+    if (bytes[bytes.length - 1] !== this.FRAME_END) {
+      throw new Error('帧结束符错误，必须以16结尾');
+    }
+
+    // 2. 提取核心字段
+    const reversedAddressBytes = bytes.slice(1, 7); // 反转后的地址（6字节）
+    const controlCode = bytes[8]; // 控制码（第9字节）
+    const dataLen = bytes[9]; // 数据域长度（第10字节）
+    const dataFieldBytes = bytes.slice(10, 10 + dataLen); // 原始数据域字节
+    const checksum = bytes[10 + dataLen]; // 校验码
+    const meterAddress = this.restoreAddress(reversedAddressBytes); // 恢复原始地址
+    console.log('原始数据域字节：', dataFieldBytes);
+
+    // 3. 校验码验证（模256求和）
+    const checkSource = bytes.slice(0, 10 + dataLen); // 校验范围：从第一个68到数据域结束
+    const calculatedChecksum = this.calculateSumCheck(checkSource);
+    const isCrcValid = calculatedChecksum === checksum;
+
+    // 4. 解析控制码名称（修复：兼容应答位0x80）
+    let controlCodeName = '未知控制码';
+    const originalControlCode = controlCode & 0x7F; // 去掉应答位0x80
+    switch (originalControlCode) {
+      case DL645_2007_ControlCode.READ_SINGLE:
+        controlCodeName = '读单个数据';
+        break;
+      case DL645_2007_ControlCode.READ_BATCH:
+        controlCodeName = '批量读数据';
+        break;
+      case DL645_2007_ControlCode.CONTROL:
+        controlCodeName = '控制命令';
+        break;
+    }
+
+    // 5. 解析数据域（删除错误的parseDL645DataFieldFromHex调用，恢复正确逻辑）
+    const parameters: ParameterResult[] = [];
+    if (dataLen > 0) {
+      try {
+        const dataFieldResult = DL645_2007_DATA.parseDataField(controlCode, dataFieldBytes);
+        parameters.push(dataFieldResult);
+      } catch (e) {
+        console.warn('数据域解析失败：', (e as Error).message);
+        parameters.push({
+          name: '解析失败',
+          rawValue: '',
+          value: '',
+          unit: '',
+          dataId: ''
+        });
+      }
+    }
+
+    // 6. 返回解析结果（恢复正确返回逻辑）
+    return {
+      meterAddress: meterAddress,
+      controlCode: controlCode.toString(16).padStart(2, '0').toUpperCase(),
+      controlCodeName: controlCodeName,
+      parameters: parameters,
+      isCrcValid: isCrcValid
+    };
   }
-
-  // 6. 返回解析结果（恢复正确返回逻辑）
-  return {
-    meterAddress: meterAddress,
-    controlCode: controlCode.toString(16).padStart(2, '0').toUpperCase(),
-    controlCodeName: controlCodeName,
-    parameters: parameters,
-    isCrcValid: isCrcValid
-  };
-}  }
-
-
-// 类型定义
-// export type DataId = keyof typeof DATA_CONFIG.DATA_ID_MAP;
-export interface DL645ParseResult {
-  dataId: string;        // 8位数据标识（十六进制）
-  dataIdName: string;    // 数据标识名称
-  rawBytes: number[];    // 原始输入字节（未减33H）
-  decodedBytes: number[];// 减33H后的字节
-  reversedBytes: number[];// 反转后的字节（核心）
-  rawValue: number;      // 反转后原始数值（十进制）
-  actualValue: number;   // 换算后实际值
-  unit: string;          // 单位
-  scale: number;         // 换算比例
 }
-
-/**
- * 单个字节减33H（处理负数溢出）
- * @param byte 原始字节
- * @returns 偏移后字节
- */
-// // function decodeByte(byte: number): number {
-// //   const decoded = byte - DATA_CONFIG.DATA_OFFSET;
-  
-// //   return decoded < 0 ? decoded + 256 : decoded;
-// }
 
