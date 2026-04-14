@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-14 16:00:44
+ * @LastEditTime: 2026-04-14 17:22:01
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -90,9 +90,6 @@ export class DL645_2007 {
   private static readonly DATA_OFFSET = 0x33;
   // 扩展控制相关常量
   private static readonly OPERATOR_CODE = '00000000';
-  // private static readonly PRE_BUF = Buffer.from([0xfe, 0xfe, 0xfe, 0xfe]);
-  // private static readonly DIV_BUF = Buffer.from([0x68]);
-  // private static readonly END_BUF = Buffer.from([0x16]);
 
   /**
    * 地址处理：仅反转字节顺序（匹配预期格式）
@@ -406,8 +403,6 @@ export class DL645_2007 {
     };
   }
 
-  // ==================== 新增扩展控制命令相关方法（来自oc1.ts） ====================
-
   /**
    * 数据编码（加33H偏移）
    * @param data 待编码的16进制字符串
@@ -416,10 +411,6 @@ export class DL645_2007 {
    */
   private static encodeData(data: string, isReverse = false): Buffer {
     let dataBuf = Buffer.from(data, 'hex');
-    // 逐个字节加上偏移量
-    // for (let i = 0; i < dataBuf.length; i++) {
-    //   dataBuf[i] = dataBuf[i] + this.DATA_OFFSET;
-    // }
     dataBuf = Buffer.from(dataBuf.map(byte => (byte + this.DATA_OFFSET) % 256));
     // 需要反转则处理
     if (isReverse) {
@@ -436,12 +427,10 @@ export class DL645_2007 {
    * @returns 完整命令Buffer
    */
   private static dataToHex(meterAddress: string, controlCode: number, dataBuf: Buffer): Buffer {
-    // 修复点1：将csBuf从const改为let，避免常量赋值错误
+
     let csBuf = Buffer.from([0x00]);
     const lBuf = Buffer.from([dataBuf.length]);
     const controlCodeBuf = Buffer.from([controlCode]);
-
-    // 修复点2：正确拼接校验前的Buffer（统一为Buffer类型，避免混合number/数组）
     const frameStartBuf = Buffer.from([this.FRAME_START]);
     const reversedAddressBuf = Buffer.from(this.reverseAddress(meterAddress));
 
@@ -454,11 +443,9 @@ export class DL645_2007 {
       dataBuf                       // 数据域
     ]);
 
-    // 修复点3：正确计算校验和（入参为number[]类型）
     const checksum = this.calculateSumCheck(Array.from(csDataBuf));
     csBuf = Buffer.from([checksum]);
 
-    // 修复点4：正确拼接最终Buffer（使用Buffer.concat，而非数组flat）
     return Buffer.concat([
       Buffer.from(this.FRAME_HEADER),  // 前置帧头 FE FE FE FE
       csDataBuf,     // 核心数据（68+地址+68+控制码+长度+数据）
@@ -475,12 +462,7 @@ export class DL645_2007 {
    * @param effectiveTime 生效时间（可选，默认次日生效）
    * @returns 完整控制命令Buffer
    */
-  static buildControlCmd(
-    address: string,
-    password: string,
-    cmdCode: string,
-    effectiveTime?: string
-  ): Buffer {
+  static buildControlCmd( address: string, password: string, cmdCode: string, effectiveTime?: string  ): Buffer {
     // const controlCode = '1C';
     // 处理生效时间，默认次日生效
     const effTime = effectiveTime || dayjs().add(1, 'day').format('ssmmHHDDMMYY');
@@ -510,7 +492,7 @@ export class DL645_2007 {
    * @returns 合闸命令Buffer
    */
   static close(address: string, password: string): Buffer {
-    return this.buildControlCmd(address, password, '1C00');
+    return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_CLOSE);
   }
 
   /**
@@ -520,7 +502,7 @@ export class DL645_2007 {
    * @returns 拉闸命令Buffer
    */
   static open(address: string, password: string): Buffer {
-    return this.buildControlCmd(address, password, '1A00');
+    return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_OPEN);
   }
 
   /**
@@ -530,7 +512,7 @@ export class DL645_2007 {
    * @returns 保电命令Buffer
    */
   static protect(address: string, password: string): Buffer {
-    return this.buildControlCmd(address, password, '3A00');
+    return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_POWER_KEEP);
   }
 
   /**
@@ -540,6 +522,6 @@ export class DL645_2007 {
    * @returns 取消保电命令Buffer
    */
   static cancelProtect(address: string, password: string): Buffer {
-    return this.buildControlCmd(address, password, '3B00');
+    return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_CANCEL_POWER_KEEP);
   }
 }
