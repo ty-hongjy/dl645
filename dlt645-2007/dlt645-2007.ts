@@ -3,8 +3,10 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-03-25 16:20:32
+ * @LastEditTime: 2026-04-14 16:00:44
  */
+import * as dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs'
 
 // 数据标识枚举（8位十六进制格式）
 export enum DL645_2007_DataId {
@@ -28,16 +30,18 @@ export enum DL645_2007_DataId {
   COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION = '00000000', // 组合有功总能耗
 
   // 控制命令
-  CONTROL_OPEN = '00040100',         // 合闸
-  CONTROL_CLOSE = '00040200',        // 拉闸
-  CONTROL_POWER_KEEP = '00040300',   // 保电
+  CONTROL_OPEN = '1A00',         // 合闸
+  CONTROL_CLOSE = '1C00',        // 拉闸
+  CONTROL_POWER_KEEP = '3A00',   // 保电
+  CONTROL_CANCEL_POWER_KEEP = '3B00', // 取消保电
 }
 
 // 控制码枚举
 export enum DL645_2007_ControlCode {
   READ_SINGLE = 0x11,    // 读单个数据
   READ_BATCH = 0x12,     // 批量读数据
-  CONTROL = 0x13         // 控制命令
+  // CONTROL = 0x13,        // 控制命令
+  CONTROL = 0x1C // 扩展控制码（对应oc1中的1C）
 }
 
 // 类型定义
@@ -84,6 +88,11 @@ export class DL645_2007 {
   public static readonly FRAME_HEADER = 'FEFEFEFE';
   // 数据域发送时的偏移值（每位加33/0x33）
   private static readonly DATA_OFFSET = 0x33;
+  // 扩展控制相关常量
+  private static readonly OPERATOR_CODE = '00000000';
+  // private static readonly PRE_BUF = Buffer.from([0xfe, 0xfe, 0xfe, 0xfe]);
+  // private static readonly DIV_BUF = Buffer.from([0x68]);
+  // private static readonly END_BUF = Buffer.from([0x16]);
 
   /**
    * 地址处理：仅反转字节顺序（匹配预期格式）
@@ -201,16 +210,16 @@ export class DL645_2007 {
    * @param dataId 控制命令标识
    * @returns 完整的报文字节数组
    */
-  static buildControlRequest(
-    meterAddress: string,
-    controlCode: DL645_2007_ControlCode,
-    dataId: DL645_2007_DataId
-  ): number[] {
-    if (controlCode !== DL645_2007_ControlCode.CONTROL) {
-      throw new Error('控制命令必须使用CONTROL控制码(0x13)');
-    }
-    return this.buildReadRequest(meterAddress, controlCode, dataId);
-  }
+  // static buildControlRequest(
+  //   meterAddress: string,
+  //   controlCode: DL645_2007_ControlCode,
+  //   dataId: DL645_2007_DataId
+  // ): number[] {
+  //   if (controlCode !== DL645_2007_ControlCode.CONTROL) {
+  //     throw new Error('控制命令必须使用CONTROL控制码(0x13)');
+  //   }
+  //   return this.buildReadRequest(meterAddress, controlCode, dataId);
+  // }
 
   /**
    * 字节数组转无空格十六进制字符串（强制大写）
@@ -278,7 +287,6 @@ export class DL645_2007 {
     return dataBytes.map(byte => (byte + this.DATA_OFFSET) % 256);
   }
 
-
   /**
    * 解析数据域
    * @param controlCode 控制码（用于判断数据域结构）
@@ -301,10 +309,10 @@ export class DL645_2007 {
     const dataId = dataIdBytesReversed.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
     const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
 
-  // 步骤4：提取数据（数据标识后所有字节），16进制BCD格式转为十进制整数
+    // 步骤4：提取数据（数据标识后所有字节），16进制BCD格式转为十进制整数
     const valueBytes = decodedBytes.slice(4);
     console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
-    let v1=valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
     console.log('数据域字节10进制BCD：', v1);
     const rawValue = parseInt(v1);
     const value = rawValue * dataIdConfig.scale;
@@ -319,11 +327,11 @@ export class DL645_2007 {
   }
 
   /**
- * 解析DL/T645-2007完整数据帧
- * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
- * @returns 解析结果（含地址、控制码、参数、CRC校验结果）
- */
-  static parseFrame(frameBytes: Buffer | number[]): ParseResult { // 注意返回类型修正为ParseResult
+   * 解析DL/T645-2007完整数据帧
+   * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
+   * @returns 解析结果（含地址、控制码、参数、CRC校验结果）
+   */
+  static parseFrame(frameBytes: Buffer | number[]): ParseResult {
     // 统一转换为number[]（兼容Buffer输入）
     const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
 
@@ -362,12 +370,15 @@ export class DL645_2007 {
       case DL645_2007_ControlCode.READ_BATCH:
         controlCodeName = '批量读数据';
         break;
+      // case DL645_2007_ControlCode.CONTROL:
+      //   controlCodeName = '控制命令';
+      //   break;
       case DL645_2007_ControlCode.CONTROL:
         controlCodeName = '控制命令';
         break;
     }
 
-    // 5. 解析数据域（删除错误的parseDL645DataFieldFromHex调用，恢复正确逻辑）
+    // 5. 解析数据域
     const parameters: ParameterResult[] = [];
     if (dataLen > 0) {
       try {
@@ -385,7 +396,7 @@ export class DL645_2007 {
       }
     }
 
-    // 6. 返回解析结果（恢复正确返回逻辑）
+    // 6. 返回解析结果
     return {
       meterAddress: meterAddress,
       controlCode: controlCode.toString(16).padStart(2, '0').toUpperCase(),
@@ -393,5 +404,142 @@ export class DL645_2007 {
       parameters: parameters,
       isCrcValid: isCrcValid
     };
+  }
+
+  // ==================== 新增扩展控制命令相关方法（来自oc1.ts） ====================
+
+  /**
+   * 数据编码（加33H偏移）
+   * @param data 待编码的16进制字符串
+   * @param isReverse 是否反转Buffer
+   * @returns 编码后的Buffer
+   */
+  private static encodeData(data: string, isReverse = false): Buffer {
+    let dataBuf = Buffer.from(data, 'hex');
+    // 逐个字节加上偏移量
+    // for (let i = 0; i < dataBuf.length; i++) {
+    //   dataBuf[i] = dataBuf[i] + this.DATA_OFFSET;
+    // }
+    dataBuf = Buffer.from(dataBuf.map(byte => (byte + this.DATA_OFFSET) % 256));
+    // 需要反转则处理
+    if (isReverse) {
+      dataBuf = Buffer.from(dataBuf.reverse());
+    }
+    return dataBuf;
+  }
+
+    /**
+   * 构建扩展控制命令的核心方法
+   * @param meterAddress 电表地址
+   * @param controlCode 控制码（16进制字符串）
+   * @param dataBuf 数据Buffer
+   * @returns 完整命令Buffer
+   */
+  private static dataToHex(meterAddress: string, controlCode: number, dataBuf: Buffer): Buffer {
+    // 修复点1：将csBuf从const改为let，避免常量赋值错误
+    let csBuf = Buffer.from([0x00]);
+    const lBuf = Buffer.from([dataBuf.length]);
+    const controlCodeBuf = Buffer.from([controlCode]);
+
+    // 修复点2：正确拼接校验前的Buffer（统一为Buffer类型，避免混合number/数组）
+    const frameStartBuf = Buffer.from([this.FRAME_START]);
+    const reversedAddressBuf = Buffer.from(this.reverseAddress(meterAddress));
+
+    const csDataBuf = Buffer.concat([
+      frameStartBuf,                // 帧起始符 0x68
+      reversedAddressBuf,           // 反转后的地址
+      frameStartBuf,                // 第二个帧起始符 0x68
+      controlCodeBuf,               // 控制码
+      lBuf,                         // 数据长度
+      dataBuf                       // 数据域
+    ]);
+
+    // 修复点3：正确计算校验和（入参为number[]类型）
+    const checksum = this.calculateSumCheck(Array.from(csDataBuf));
+    csBuf = Buffer.from([checksum]);
+
+    // 修复点4：正确拼接最终Buffer（使用Buffer.concat，而非数组flat）
+    return Buffer.concat([
+      Buffer.from(this.FRAME_HEADER),  // 前置帧头 FE FE FE FE
+      csDataBuf,     // 核心数据（68+地址+68+控制码+长度+数据）
+      csBuf,         // 校验和
+      Buffer.from([this.FRAME_END])   // 帧结束符 0x16
+    ]);
+  }
+
+  /**
+   * 构建扩展控制命令（合闸/拉闸/保电等）
+   * @param address 电表地址
+   * @param password 密码（16进制字符串）
+   * @param cmdCode 命令码（16进制字符串，如'1C00'合闸/'1A00'拉闸）
+   * @param effectiveTime 生效时间（可选，默认次日生效）
+   * @returns 完整控制命令Buffer
+   */
+  static buildControlCmd(
+    address: string,
+    password: string,
+    cmdCode: string,
+    effectiveTime?: string
+  ): Buffer {
+    // const controlCode = '1C';
+    // 处理生效时间，默认次日生效
+    const effTime = effectiveTime || dayjs().add(1, 'day').format('ssmmHHDDMMYY');
+
+    // 构建数据Buffer
+    // const dataBuf = Buffer.concat([
+    //   this.encodeDataBytes(Buffer.from(password, 'hex')), // 密码
+    //   this.encodeDataBytes(this.OPERATOR_CODE),
+    //   this.encodeDataBytes(cmdCode),
+    //   this.encodeDataBytes(effTime),
+    // ]);
+
+    const dataBuf = Buffer.concat([
+      this.encodeData(password),
+      this.encodeData(this.OPERATOR_CODE),
+      this.encodeData(cmdCode),
+      this.encodeData(effTime),
+    ]);
+
+    return this.dataToHex(address, DL645_2007_ControlCode.CONTROL, dataBuf);
+  }
+
+  /**
+   * 合闸命令
+   * @param address 电表地址
+   * @param password 密码（16进制字符串）
+   * @returns 合闸命令Buffer
+   */
+  static close(address: string, password: string): Buffer {
+    return this.buildControlCmd(address, password, '1C00');
+  }
+
+  /**
+   * 拉闸/开闸命令
+   * @param address 电表地址
+   * @param password 密码（16进制字符串）
+   * @returns 拉闸命令Buffer
+   */
+  static open(address: string, password: string): Buffer {
+    return this.buildControlCmd(address, password, '1A00');
+  }
+
+  /**
+   * 保电命令
+   * @param address 电表地址
+   * @param password 密码（16进制字符串）
+   * @returns 保电命令Buffer
+   */
+  static protect(address: string, password: string): Buffer {
+    return this.buildControlCmd(address, password, '3A00');
+  }
+
+  /**
+   * 取消保电命令
+   * @param address 电表地址
+   * @param password 密码（16进制字符串）
+   * @returns 取消保电命令Buffer
+   */
+  static cancelProtect(address: string, password: string): Buffer {
+    return this.buildControlCmd(address, password, '3B00');
   }
 }

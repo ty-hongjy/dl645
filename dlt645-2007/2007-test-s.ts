@@ -3,10 +3,11 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-03-25 14:09:02
+ * @LastEditTime: 2026-04-14 11:18:19
  */
 import { SerialPort } from 'serialport';
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
+import {on,off,protect,cancelProtect} from './oc1'; 
 // import { DL645_2007_DATA } from './dlt645-2007';
 
 // 串口配置
@@ -23,6 +24,8 @@ const port = new SerialPort({
 let serialBuffer = Buffer.alloc(0);
 // 测试配置
 const TEST_METER_ADDRESS = '202411110002'; 
+// const TEST_METER_ADDRESS = '202506110941'; 
+const TEST_PW = '02000000'; 
 
 /**
  * 解析电表响应帧（核心修复：剥离485帧头FEFEFEFE）
@@ -84,7 +87,7 @@ function openPortAndSendCommand() {
     const coreHex = DL645_2007.bytesToHexString(commandBytes);
     const fullHex = DL645_2007.FRAME_HEADER + coreHex;
     const sendBuffer = Buffer.from(fullHex, 'hex');
-
+    console.log(`发送命令（含485帧头）: ${fullHex}`);
     port.write(sendBuffer, (writeErr) => {
       if (writeErr) {
         console.error('命令发送失败:', writeErr.message);
@@ -95,6 +98,129 @@ function openPortAndSendCommand() {
   });
 }
 
+function openPortAndSendCommand1() {
+  port.open((err) => {
+    if (err) {
+      console.error('串口打开失败:', err.message);
+      setTimeout(openPortAndSendCommand, 3000); // 重试
+      return;
+    }
+
+    console.log('串口已打开，准备发送DL645-2007命令...');
+
+    const commandBytes = off(
+      TEST_METER_ADDRESS,
+      TEST_PW
+    );
+    console.log(`commandBytes:${commandBytes.toString('hex').toUpperCase()}`);
+    port.write(commandBytes , (writeErr) => {
+      if (writeErr) {
+        console.error('命令发送失败:', writeErr.message);
+      } else {
+        console.log(`发送命令off（含485帧头）`);
+      }
+    });
+  });
+}
+
+function openPortAndSendCommand3() {
+  port.open((err) => {
+    if (err) {
+      console.error('串口打开失败:', err.message);
+      setTimeout(openPortAndSendCommand, 3000); // 重试
+      return;
+    }
+
+    console.log('串口已打开，准备发送DL645-2007命令...');
+
+    const commandBytes = cancelProtect(
+      TEST_METER_ADDRESS,
+      TEST_PW
+    );
+    console.log(`commandBytes:${commandBytes.toString('hex').toUpperCase()}`);
+    port.write(commandBytes , (writeErr) => {
+      if (writeErr) {
+        console.error('命令发送失败:', writeErr.message);
+      } else {
+        console.log(`发送命令cancel protect（含485帧头）`);
+      }
+    });
+  });
+}
+
+function openPortAndSendCommand4() {
+  port.open((err) => {
+    if (err) {
+      console.error('串口打开失败:', err.message);
+      setTimeout(openPortAndSendCommand, 3000); // 重试
+      return;
+    }
+
+    console.log('串口已打开，准备发送DL645-2007命令...');
+
+    const commandBytes = on(
+      TEST_METER_ADDRESS,
+      TEST_PW
+    );
+    console.log(`commandBytes:${commandBytes.toString('hex').toUpperCase()}`);
+    port.write(commandBytes , (writeErr) => {
+      if (writeErr) {
+        console.error('命令发送失败:', writeErr.message);
+      } else {
+        console.log(`发送命令on（含485帧头）`);
+      }
+    });
+  });
+}
+
+function openPortAndSendCommand2() {
+  port.open((err) => {
+    if (err) {
+      console.error('串口打开失败:', err.message);
+      setTimeout(openPortAndSendCommand, 3000); // 重试
+      return;
+    }
+
+    console.log('串口已打开，准备发送DL645-2007命令...');
+
+    // const commandBytes = cancelProtect(
+    //   TEST_METER_ADDRESS,
+    //   TEST_PW
+    // );
+
+    const commandBytes = cancelProtect(
+      TEST_METER_ADDRESS,
+      TEST_PW
+    );
+
+    port.write(commandBytes , (writeErr) => {
+      if (writeErr) {
+        console.error('命令发送失败:', writeErr.message);
+      } else {
+        console.log(`发送命令cancel protect（含485帧头）: ${commandBytes}`);
+      }
+    });
+  });
+
+  //  延时1s后发送开闸命令
+ 
+ setTimeout(() => { 
+  console.log('延时1s后发送开闸命令...');
+  const commandBytes = off(
+        TEST_METER_ADDRESS,
+        TEST_PW
+      );
+
+      port.write(commandBytes , (writeErr) => {
+        if (writeErr) {
+          console.error('命令发送失败:', writeErr.message);
+        } else {
+          console.log(`发送命令off（含485帧头）: ${commandBytes}`);
+        }
+      });
+  },
+   1000);
+}
 // 串口数据监听
 port.on('data', (data: Buffer) => {
 //   const phaseAVoltageBytes = [0x45, 0x33, 0x33, 0x33]; // 原始数据域字节（未减33H）
@@ -106,16 +232,16 @@ port.on('data', (data: Buffer) => {
 // const energyResult = parseDataFieldOnly(totalEnergyBytes, DL645_2007_DataId.TOTAL_ACTIVE_ENERGY);
 // console.log('总电能解析结果：', energyResult);
   console.log(`\n收到原始数据（长度：${data.length}字节）: ${data.toString('hex').toUpperCase()}`);
-  
+
   // 拼接缓存
   serialBuffer = Buffer.concat([serialBuffer, data]);
-  
+
   // 循环解析所有完整帧（支持多帧）
   let endIndex: number;
   while ((endIndex = serialBuffer.indexOf(0x16)) !== -1) {
     const completeFrame = serialBuffer.slice(0, endIndex + 1);
     serialBuffer = serialBuffer.slice(endIndex + 1);
-    console.log(`截取完整帧（长度：${completeFrame.length}字节）: ${completeFrame.toString('hex').toUpperCase()}`);
+    console.log(`完整帧（长度：${completeFrame.length}字节）: ${completeFrame.toString('hex').toUpperCase()}`);
     // 解析帧
     parseMeterResponse(completeFrame);
   }
@@ -129,8 +255,16 @@ port.on('error', (err: Error) => {
 // 串口关闭监听
 port.on('close', () => {
   console.log('串口已关闭，3秒后尝试重连...');
+  // setTimeout(openPortAndSendCommand, 3000);
   setTimeout(openPortAndSendCommand, 3000);
-});
+  // setTimeout(openPortAndSendCommand2, 3000);
+  // setTimeout(openPortAndSendCommand3, 3000);
+  // setTimeout(openPortAndSendCommand4, 3000);
+}); 
 
 // 启动串口通信
-openPortAndSendCommand();
+// openPortAndSendCommand();
+// openPortAndSendCommand1();
+// openPortAndSendCommand2();
+// openPortAndSendCommand3();
+openPortAndSendCommand4();

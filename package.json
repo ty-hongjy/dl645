@@ -13,6 +13,7 @@
     "@serialport/parser-byte-length": "^13.0.0",
     "await-to-js": "^3.0.0",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.20",
     "lodash": "^4.17.21",
     "log4js": "^6.9.1",
     "ts-node": "^10.9.2",
