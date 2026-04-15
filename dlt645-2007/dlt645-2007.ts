@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-14 17:22:01
+ * @LastEditTime: 2026-04-15 10:45:24
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -132,13 +132,14 @@ export class DL645_2007 {
    * @returns 校验值（单个字节）
    */
   private static calculateSumCheck(bytes: number[]): number {
-    let sum = 0;
-    for (const byte of bytes) {
-      sum += byte;
-      // 实时取模避免数值过大（等价于最终sum % 256）
-      sum = sum % 256;
-    }
-    return sum & 0xff;
+    // let sum = 0;
+    // for (const byte of bytes) {
+    //   sum += byte;
+    //   // 实时取模避免数值过大（等价于最终sum % 256）
+    //   sum = sum % 256;
+    // }
+    // return sum & 0xff;
+    return bytes.reduce((acc, byte) => (acc + byte) % 256, 0) & 0xff;
   }
 
   /**

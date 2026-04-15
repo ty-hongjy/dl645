@@ -3,12 +3,10 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-14 11:18:19
+ * @LastEditTime: 2026-04-15 10:54:42
  */
 import { SerialPort } from 'serialport';
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
-import {on,off,protect,cancelProtect} from './oc1'; 
-// import { DL645_2007_DATA } from './dlt645-2007';
 
 // 串口配置
 const port = new SerialPort({
@@ -108,7 +106,7 @@ function openPortAndSendCommand1() {
 
     console.log('串口已打开，准备发送DL645-2007命令...');
 
-    const commandBytes = off(
+    const commandBytes = DL645_2007.open(
       TEST_METER_ADDRESS,
       TEST_PW
     );
@@ -133,7 +131,7 @@ function openPortAndSendCommand3() {
 
     console.log('串口已打开，准备发送DL645-2007命令...');
 
-    const commandBytes = cancelProtect(
+    const commandBytes = DL645_2007.cancelProtect(
       TEST_METER_ADDRESS,
       TEST_PW
     );
@@ -158,7 +156,7 @@ function openPortAndSendCommand4() {
 
     console.log('串口已打开，准备发送DL645-2007命令...');
 
-    const commandBytes = on(
+    const commandBytes = DL645_2007.close(
       TEST_METER_ADDRESS,
       TEST_PW
     );
@@ -188,7 +186,7 @@ function openPortAndSendCommand2() {
     //   TEST_PW
     // );
 
-    const commandBytes = cancelProtect(
+    const commandBytes = DL645_2007.cancelProtect(
       TEST_METER_ADDRESS,
       TEST_PW
     );
@@ -206,7 +204,7 @@ function openPortAndSendCommand2() {
  
  setTimeout(() => { 
   console.log('延时1s后发送开闸命令...');
-  const commandBytes = off(
+  const commandBytes = DL645_2007.open(
         TEST_METER_ADDRESS,
         TEST_PW
       );
@@ -256,7 +254,7 @@ port.on('error', (err: Error) => {
 port.on('close', () => {
   console.log('串口已关闭，3秒后尝试重连...');
   // setTimeout(openPortAndSendCommand, 3000);
-  setTimeout(openPortAndSendCommand, 3000);
+  setTimeout(openPortAndSendCommand1, 3000);
   // setTimeout(openPortAndSendCommand2, 3000);
   // setTimeout(openPortAndSendCommand3, 3000);
   // setTimeout(openPortAndSendCommand4, 3000);
