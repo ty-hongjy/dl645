@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-15 10:54:42
+ * @LastEditTime: 2026-04-15 10:57:33
  */
 import { SerialPort } from 'serialport';
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
