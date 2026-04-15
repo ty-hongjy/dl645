@@ -1,7 +1,7 @@
 {
-  "name": "dl645-1997",
+  "name": "dl645_protocal",
   "version": "1.0.0",
-  "description": "dl645-1997 comunication protocal for meter",
+  "description": "dl645-1997 and dl645-2007 comunication protocal for meter",
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
