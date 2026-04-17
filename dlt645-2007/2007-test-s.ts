@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-15 10:57:33
+ * @LastEditTime: 2026-04-17 09:49:06
  */
 import { SerialPort } from 'serialport';
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
@@ -72,25 +72,33 @@ function openPortAndSendCommand() {
 
     console.log('串口已打开，准备发送DL645-2007命令...');
 
-    // 构建读A相电压命令
-    const commandBytes = DL645_2007.buildReadRequest(
+    const commandBytes = DL645_2007.buildReadCmd(
       TEST_METER_ADDRESS,
       DL645_2007_ControlCode.READ_SINGLE,
       // DL645_2007_DataId.PHASE_A_VOLTAGE
       // DL645_2007_DataId.PHASE_A_CURRENT
       DL645_2007_DataId.COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION
     );
+    // 构建读A相电压命令
+    // const commandBytes = DL645_2007.buildReadRequest(
+    //   TEST_METER_ADDRESS,
+    //   DL645_2007_ControlCode.READ_SINGLE,
+    //   // DL645_2007_DataId.PHASE_A_VOLTAGE
+    //   // DL645_2007_DataId.PHASE_A_CURRENT
+    //   DL645_2007_DataId.COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION
+    // );
 
-    // 拼接485帧头并发送
-    const coreHex = DL645_2007.bytesToHexString(commandBytes);
-    const fullHex = DL645_2007.FRAME_HEADER + coreHex;
-    const sendBuffer = Buffer.from(fullHex, 'hex');
-    console.log(`发送命令（含485帧头）: ${fullHex}`);
-    port.write(sendBuffer, (writeErr) => {
+
+    // // 拼接485帧头并发送
+    // const coreHex = DL645_2007.bytesToHexString(commandBytes);
+    // const fullHex = DL645_2007.FRAME_HEADER + coreHex;
+    // const sendBuffer = Buffer.from(fullHex, 'hex');
+    // console.log(`发送命令（含485帧头）: ${fullHex}`);
+    port.write(commandBytes, (writeErr) => {
       if (writeErr) {
         console.error('命令发送失败:', writeErr.message);
       } else {
-        console.log(`发送命令（含485帧头）: ${fullHex}`);
+        console.log(`发送命令（含485帧头）: ${commandBytes.toString}`);
       }
     });
   });
@@ -261,8 +269,8 @@ port.on('close', () => {
 }); 
 
 // 启动串口通信
-// openPortAndSendCommand();
+openPortAndSendCommand();
 // openPortAndSendCommand1();
 // openPortAndSendCommand2();
 // openPortAndSendCommand3();
-openPortAndSendCommand4();
+// openPortAndSendCommand4();

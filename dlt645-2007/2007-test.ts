@@ -3,8 +3,8 @@
  * 验证地址202411110002的电压/总电能命令是否匹配预期值
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
- * @LastEditors: hongjy
- * @LastEditTime: 2026-03-23 10:55:30
+ * @LastEditors: name
+ * @LastEditTime: 2026-04-17 09:45:57
  */
 
 import { DL645_2007, DL645_2007_ControlCode, DL645_2007_DataId } from './dlt645-2007';
@@ -33,46 +33,46 @@ const EXPECTED_COMMANDS = {
 /**
  * 测试单个命令是否匹配预期值
  */
-function testCommandMatch(
-  dataId: DL645_2007_DataId,
-  paramName: string,
-  expectedHex: string
-) {
-  console.log(`\n=== 测试【${paramName}】命令 ===`);
+// function testCommandMatch(
+//   dataId: DL645_2007_DataId,
+//   paramName: string,
+//   expectedHex: string
+// ) {
+//   console.log(`\n=== 测试【${paramName}】命令 ===`);
   
-  try {
-    // 组装命令报文
-    const commandBytes = DL645_2007.buildReadRequest(
-      TEST_METER_ADDRESS,
-      DL645_2007_ControlCode.READ_SINGLE,
-      dataId
-    );
+//   try {
+//     // 组装命令报文
+//     const commandBytes = DL645_2007.buildReadRequest(
+//       TEST_METER_ADDRESS,
+//       DL645_2007_ControlCode.READ_SINGLE,
+//       dataId
+//     );
     
-    // 转换为十六进制字符串（与预期格式对齐）
-    // console.log(DL645_2007.bytesToHexStringWithSpace(fullActualHex)); // 打印带空格的十六进制字符串，便于阅读
-    const actualHex = DL645_2007.bytesToHexString(commandBytes);
-    const fullActualHex = FRAME_HEADER + actualHex; // 拼接485帧头
-    const fah=DL645_2007.getFullCommandString(TEST_METER_ADDRESS, DL645_2007_ControlCode.READ_SINGLE, dataId);
-    // 验证核心命令部分
-    console.log(`预期命令（核心）: ${expectedHex}`);
-    console.log(`实际命令（核心）: ${actualHex}`);
-    console.log(`完整命令（含帧头）: ${fullActualHex}`);
-    console.log("1:"+FRAME_HEADER + DL645_2007.bytesToHexStringWithSpace(commandBytes)); // 打印带空格的十六进制字符串，便于阅读
-    console.log("2:"+fah); // 
+//     // 转换为十六进制字符串（与预期格式对齐）
+//     // console.log(DL645_2007.bytesToHexStringWithSpace(fullActualHex)); // 打印带空格的十六进制字符串，便于阅读
+//     const actualHex = DL645_2007.bytesToHexString(commandBytes);
+//     const fullActualHex = FRAME_HEADER + actualHex; // 拼接485帧头
+//     const fah=DL645_2007.getFullCommandString(TEST_METER_ADDRESS, DL645_2007_ControlCode.READ_SINGLE, dataId);
+//     // 验证核心命令部分
+//     console.log(`预期命令（核心）: ${expectedHex}`);
+//     console.log(`实际命令（核心）: ${actualHex}`);
+//     console.log(`完整命令（含帧头）: ${fullActualHex}`);
+//     console.log("1:"+FRAME_HEADER + DL645_2007.bytesToHexStringWithSpace(commandBytes)); // 打印带空格的十六进制字符串，便于阅读
+//     console.log("2:"+fah); // 
 
     
-    // 结果判断
-    if (actualHex === expectedHex) {
-      console.log(`✅ ${paramName}命令匹配成功`);
-    } else {
-      console.log(`❌ ${paramName}命令不匹配`);
-      console.log(`   预期完整命令: ${FRAME_HEADER + expectedHex}`);
-      console.log(`   实际完整命令: ${fullActualHex}`);
-    }
-  } catch (error) {
-    console.error(`❌ ${paramName}命令生成失败: ${(error as Error).message}`);
-  }
-}
+//     // 结果判断
+//     if (actualHex === expectedHex) {
+//       console.log(`✅ ${paramName}命令匹配成功`);
+//     } else {
+//       console.log(`❌ ${paramName}命令不匹配`);
+//       console.log(`   预期完整命令: ${FRAME_HEADER + expectedHex}`);
+//       console.log(`   实际完整命令: ${fullActualHex}`);
+//     }
+//   } catch (error) {
+//     console.error(`❌ ${paramName}命令生成失败: ${(error as Error).message}`);
+//   }
+// }
 
 /**
  * 执行所有命令验证测试

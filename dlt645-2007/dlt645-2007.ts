@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-15 10:45:24
+ * @LastEditTime: 2026-04-17 09:53:00
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -166,11 +166,7 @@ export class DL645_2007 {
    * @param dataId 数据标识
    * @returns 完整的报文字节数组
    */
-  static buildReadRequest(
-    meterAddress: string,
-    controlCode: DL645_2007_ControlCode,
-    dataId: DL645_2007_DataId
-  ): number[] {
+  static buildReadCmd( meterAddress: string, controlCode: DL645_2007_ControlCode, dataId: DL645_2007_DataId): Buffer {
     // 1. 地址处理（仅反转）
     const reversedAddress = this.reverseAddress(meterAddress);
     // 2. 数据标识转原始字节数组（已反转）
@@ -198,7 +194,12 @@ export class DL645_2007 {
       this.FRAME_END   // 帧结束符
     ];
 
-    return frame;
+    const coreHex = this.bytesToHexString(frame);
+    const fullHex = this.FRAME_HEADER + coreHex;
+    const sendBuffer = Buffer.from(fullHex, 'hex');
+    console.log("buildReadCmd:"+fullHex);
+    // return frame;
+    return sendBuffer;
   }
 
   /**
@@ -244,15 +245,15 @@ export class DL645_2007 {
    * @param dataId 数据标识
    * @returns 大写完整命令字符串
    */
-  static getFullCommandString(
-    meterAddress: string,
-    controlCode: DL645_2007_ControlCode,
-    dataId: DL645_2007_DataId
-  ): string {
-    const commandBytes = this.buildReadRequest(meterAddress, controlCode, dataId);
-    const coreCmd = this.bytesToHexString(commandBytes);
-    return (this.FRAME_HEADER + coreCmd).toUpperCase();
-  }
+  // static getFullCommandString(
+  //   meterAddress: string,
+  //   controlCode: DL645_2007_ControlCode,
+  //   dataId: DL645_2007_DataId
+  // ): string {
+  //   const commandBytes = this.buildReadRequest(meterAddress, controlCode, dataId);
+  //   const coreCmd = this.bytesToHexString(commandBytes);
+  //   return (this.FRAME_HEADER + coreCmd).toUpperCase();
+  // }
 
   /**
    * 命令对比方法（忽略大小写）
