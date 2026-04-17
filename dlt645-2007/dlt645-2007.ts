@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-17 09:56:59
+ * @LastEditTime: 2026-04-17 16:46:38
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -61,6 +61,25 @@ export interface ParseResult {
   isCrcValid: boolean;
 }
 
+export enum DL645_2007_ControlStatus {
+  SUCCESS = '执行成功',
+  FAILED = '执行失败',
+  INVALID_PASSWORD = '密码错误',
+  INVALID_CMD = '无效命令',
+  ACCESS_DENIED = '权限不足',
+  UNKNOWN = '未知状态'
+}
+
+// 扩展控制命令解析结果类型
+export interface ControlParseResult extends ParseResult {
+  controlStatus: DL645_2007_ControlStatus; // 控制命令执行状态
+  controlCmdType: string; // 控制命令类型（合闸/拉闸/保电/取消保电）
+}
+
+// 扩展DL645_2007类的静态方法
+// export class DL645_2007_Control_Extension {
+//   // 控制命令码映射（反向解析用）
+// }
 /**
  * DL/T645-2007 核心实现类（模256求和校验，无硬编码）
  */
@@ -78,6 +97,22 @@ export class DL645_2007 {
     '02030300': { name: 'C相有功功率', unit: 'kW', scale: 0.01 },
     '00010000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
     '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 }
+  };
+
+  static readonly CONTROL_CMD_MAP = {
+    '1A00': { name: '拉闸', statusOffset: 0 },
+    '1C00': { name: '合闸', statusOffset: 0 },
+    '3A00': { name: '保电', statusOffset: 0 },
+    '3B00': { name: '取消保电', statusOffset: 0 }
+  };
+
+  // 控制命令应答状态码映射（DL/T645-2007规约标准）
+  static readonly CONTROL_STATUS_MAP = {
+    0x00: DL645_2007_ControlStatus.SUCCESS,
+    0x01: DL645_2007_ControlStatus.INVALID_PASSWORD,
+    0x02: DL645_2007_ControlStatus.ACCESS_DENIED,
+    0x03: DL645_2007_ControlStatus.INVALID_CMD,
+    0xFF: DL645_2007_ControlStatus.FAILED
   };
 
   // 帧起始符
@@ -430,7 +465,7 @@ export class DL645_2007 {
    */
   private static dataToHex(meterAddress: string, controlCode: number, dataBuf: Buffer): Buffer {
 
-    let csBuf = Buffer.from([0x00]);
+    // let csBuf = Buffer.from([0x00]);
     const lBuf = Buffer.from([dataBuf.length]);
     const controlCodeBuf = Buffer.from([controlCode]);
     const frameStartBuf = Buffer.from([this.FRAME_START]);
@@ -446,7 +481,7 @@ export class DL645_2007 {
     ]);
 
     const checksum = this.calculateSumCheck(Array.from(csDataBuf));
-    csBuf = Buffer.from([checksum]);
+    const csBuf = Buffer.from([checksum]);
 
     return Buffer.concat([
       Buffer.from(this.FRAME_HEADER),  // 前置帧头 FE FE FE FE
@@ -526,4 +561,103 @@ export class DL645_2007 {
   static cancelKeep(address: string, password: string): Buffer {
     return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_CANCEL_POWER_KEEP);
   }
+/*
+ * 扩展：DL/T645-2007 控制命令（开合闸/保电）返回数据解析
+ * 基于原有DL645_2007类扩展，兼容控制命令应答帧格式
+ */
+// import { DL645_2007, DL645_2007_ControlCode, ParseResult, ParameterResult } from './dlt645-2007';
+
+// 扩展控制命令应答状态枚举
+
+  /**
+   * 解析控制命令返回帧（开合闸/保电等）
+   * @param frameBytes 完整返回帧字节数组/Buffer
+   * @returns 控制命令解析结果
+   */
+  static parseControlResponse(frameBytes: Buffer | number[]): ControlParseResult {
+    // 1. 先调用原有基础解析方法
+    const baseResult = DL645_2007.parseFrame(frameBytes);
+    const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
+
+    // 2. 初始化控制命令解析结果
+    let controlStatus = DL645_2007_ControlStatus.UNKNOWN;
+    let controlCmdType = '未知控制命令';
+
+    // 3. 验证是否为控制命令应答（控制码应为 0x9C = 0x1C + 0x80 应答位）
+    const controlCodeNum = parseInt(baseResult.controlCode, 16);
+    const originalControlCode = controlCodeNum & 0x7F;
+    if (originalControlCode !== DL645_2007_ControlCode.CONTROL) {
+      throw new Error('非控制命令应答帧，控制码应为 0x1C（应答后为0x9C）');
+    }
+
+    // 4. 解析数据域（控制命令应答格式：密码(4)+操作员(4)+命令码(2)+状态(1)+生效时间(6)）
+    if (baseResult.parameters.length > 0 && baseResult.isCrcValid) {
+      // 还原原始数据域字节（减33H）
+      const dataLen = bytes[9]; // 数据域长度
+      const rawDataBytes = bytes.slice(10, 10 + dataLen);
+      const decodedDataBytes = DL645_2007.decodeDataBytes(rawDataBytes);
+
+      // 提取命令码（第8-9字节，索引7-8）
+      if (decodedDataBytes.length >= 9) {
+        const cmdCodeBytes = decodedDataBytes.slice(8, 10).reverse(); // 反转恢复命令码
+        const cmdCode = cmdCodeBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+        // 匹配命令类型
+        controlCmdType = this.CONTROL_CMD_MAP[cmdCode]?.name || `未知命令[${cmdCode}]`;
+
+        // 提取状态码（第10字节，索引9）
+        const statusCode = decodedDataBytes[9];
+        controlStatus = this.CONTROL_STATUS_MAP[statusCode] || DL645_2007_ControlStatus.UNKNOWN;
+      }
+    }
+
+    // 5. 组合最终解析结果
+    const controlResult: ControlParseResult = {
+      ...baseResult,
+      controlStatus,
+      controlCmdType
+    };
+
+    return controlResult;
+  }
+
+  /**
+   * 简化版：快速判断控制命令执行结果
+   * @param responseHex 完整返回帧16进制字符串（含FEFEFEFE前缀）
+   * @returns 执行状态 + 命令类型
+   */
+  static quickParseControlResult(responseHex: string): {
+    success: boolean;
+    status: DL645_2007_ControlStatus;
+    cmdType: string;
+    isCrcValid: boolean;
+  } {
+    try {
+      const buffer = Buffer.from(responseHex, 'hex');
+      const result = this.parseControlResponse(buffer);
+      return {
+        success: result.controlStatus === DL645_2007_ControlStatus.SUCCESS,
+        status: result.controlStatus,
+        cmdType: result.controlCmdType,
+        isCrcValid: result.isCrcValid
+      };
+    } catch (e) {
+      return {
+        success: false,
+        status: DL645_2007_ControlStatus.UNKNOWN,
+        cmdType: '解析失败',
+        isCrcValid: false
+      };
+    }
+  }
 }
+
+// ============== 使用示例 ==============
+// 1. 解析合闸命令返回帧
+// const responseHex = 'FEFEFEFE68120011114220689C156666666666666666666666666666660016'; // 示例返回帧
+// const result = DL645_2007_Control_Extension.parseControlResponse(Buffer.from(responseHex, 'hex'));
+// console.log('控制命令解析结果：', result);
+
+// 2. 快速判断执行结果
+// const quickResult = DL645_2007_Control_Extension.quickParseControlResult(responseHex);
+// console.log('快速解析结果：', quickResult);
+// }
