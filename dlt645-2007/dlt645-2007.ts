@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-17 09:53:00
+ * @LastEditTime: 2026-04-17 09:56:59
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -513,7 +513,7 @@ export class DL645_2007 {
    * @param password 密码（16进制字符串）
    * @returns 保电命令Buffer
    */
-  static protect(address: string, password: string): Buffer {
+  static keep(address: string, password: string): Buffer {
     return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_POWER_KEEP);
   }
 
@@ -523,7 +523,7 @@ export class DL645_2007 {
    * @param password 密码（16进制字符串）
    * @returns 取消保电命令Buffer
    */
-  static cancelProtect(address: string, password: string): Buffer {
+  static cancelKeep(address: string, password: string): Buffer {
     return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_CANCEL_POWER_KEEP);
   }
 }
