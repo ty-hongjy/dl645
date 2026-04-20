@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-17 16:51:46
+ * @LastEditTime: 2026-04-20 10:14:21
  */
 import { SerialPort } from 'serialport';
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
@@ -270,7 +270,7 @@ port.on('close', () => {
 
 // 启动串口通信
 // openPortAndSendCommand();
-openPortAndSendCommand1();
+// openPortAndSendCommand1();
 // openPortAndSendCommand2();
 // openPortAndSendCommand3();
-// openPortAndSendCommand4();
+openPortAndSendCommand4();

@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-17 16:46:38
+ * @LastEditTime: 2026-04-20 10:08:49
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -61,6 +61,7 @@ export interface ParseResult {
   isCrcValid: boolean;
 }
 
+// 控制命令应答状态枚举
 export enum DL645_2007_ControlStatus {
   SUCCESS = '执行成功',
   FAILED = '执行失败',
@@ -365,22 +366,35 @@ export class DL645_2007 {
    * @param frameBytes 完整帧字节数组（含帧头/帧尾，可传入Buffer或number[]）
    * @returns 解析结果（含地址、控制码、参数、CRC校验结果）
    */
-  static parseFrame(frameBytes: Buffer | number[]): ParseResult {
+  static parseFrame(frameBytes: Buffer | number[]) {
     // 统一转换为number[]（兼容Buffer输入）
     const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
 
-    // 1. 基础帧结构校验
-    if (bytes.length < 14) { // 最小帧长度：68 + 6地址 + 68 + 控制码 + 长度 + 数据 + 校验 + 16
-      throw new Error('帧长度过短，不符合DL/T645-2007格式');
-    }
     if (bytes[0] !== this.FRAME_START || bytes[7] !== this.FRAME_START) {
       throw new Error('帧起始符错误，必须以68开头且地址后紧跟68');
     }
+
     if (bytes[bytes.length - 1] !== this.FRAME_END) {
       throw new Error('帧结束符错误，必须以16结尾');
     }
+    // 1. 基础帧结构校验
+    if (bytes.length < 14) { // 最小帧长度：68 + 6地址 + 68 + 控制码 + 长度 + 数据 + 校验 + 16
+      // throw new Error('帧长度过短，不符合DL/T645-2007格式');
+      const Result = this.parseControlResponse(bytes);
+      return { ...Result, isValid: false };
+    }else{
+      const Result = this.parseReadResponse(bytes);
+      return { ...Result, isValid: true };
+    }
 
+  }
+
+  static parseReadResponse(frameBytes: number[]): ParseResult {
+  // static parseReadResponse(frameBytes: Buffer | number[]): ParseResult {
     // 2. 提取核心字段
+    const bytes = frameBytes;
+    // const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
+
     const reversedAddressBytes = bytes.slice(1, 7); // 反转后的地址（6字节）
     const controlCode = bytes[8]; // 控制码（第9字节）
     const dataLen = bytes[9]; // 数据域长度（第10字节）
@@ -561,23 +575,24 @@ export class DL645_2007 {
   static cancelKeep(address: string, password: string): Buffer {
     return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_CANCEL_POWER_KEEP);
   }
-/*
+
+ /*
  * 扩展：DL/T645-2007 控制命令（开合闸/保电）返回数据解析
  * 基于原有DL645_2007类扩展，兼容控制命令应答帧格式
  */
-// import { DL645_2007, DL645_2007_ControlCode, ParseResult, ParameterResult } from './dlt645-2007';
 
-// 扩展控制命令应答状态枚举
 
   /**
    * 解析控制命令返回帧（开合闸/保电等）
    * @param frameBytes 完整返回帧字节数组/Buffer
    * @returns 控制命令解析结果
    */
-  static parseControlResponse(frameBytes: Buffer | number[]): ControlParseResult {
+  static parseControlResponse(frameBytes: number[]): ControlParseResult {
+  // static parseControlResponse(frameBytes: Buffer | number[]): ControlParseResult {
     // 1. 先调用原有基础解析方法
-    const baseResult = DL645_2007.parseFrame(frameBytes);
-    const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
+    // const baseResult = DL645_2007.parseFrame(frameBytes);
+    const baseResult = this.parseReadResponse(frameBytes)
+    const bytes = frameBytes;
 
     // 2. 初始化控制命令解析结果
     let controlStatus = DL645_2007_ControlStatus.UNKNOWN;
@@ -633,7 +648,7 @@ export class DL645_2007 {
   } {
     try {
       const buffer = Buffer.from(responseHex, 'hex');
-      const result = this.parseControlResponse(buffer);
+      const result = this.parseControlResponse(Array.from(buffer));
       return {
         success: result.controlStatus === DL645_2007_ControlStatus.SUCCESS,
         status: result.controlStatus,
