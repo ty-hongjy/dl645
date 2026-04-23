@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-23 11:16:50
+ * @LastEditTime: 2026-04-23 11:26:37
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -626,7 +626,7 @@ export class DL645_2007 {
       // 还原原始数据域字节（减33H）
       const dataLen = bytes[9]; // 数据域长度
       const rawDataBytes = bytes.slice(10, 10 + dataLen);
-      const decodedDataBytes = DL645_2007.decodeDataBytes(rawDataBytes);
+      const decodedDataBytes = this.decodeDataBytes(rawDataBytes);
 
       // 提取命令码（第8-9字节，索引7-8）
       if (decodedDataBytes.length >= 9) {
@@ -685,17 +685,10 @@ export class DL645_2007 {
    * 解析 DLT645-2007 开合闸应答
    * @param input 十六进制字符串（如 "68 12 34 56 78 90 12 68 91 04 XX XX XX XX XX 16"）
    */
-  static parseControlReply(input: string | number[]): ControlResult {
+  static parseControlReply(frameBytes: number[]): ControlResult {
     // 1. 统一转成数字数组
     let bytes: number[];
-    if (typeof input === 'string') {
-      bytes = input
-        .replace(/\s+/g, '')
-        .match(/.{1,2}/g)!
-        .map(b => parseInt(b, 16));
-    } else {
-      bytes = input;
-    }
+    bytes = frameBytes;
 
     // 默认失败结果
     const defaultResult: ControlResult = {
@@ -718,10 +711,10 @@ export class DL645_2007 {
     const start2 = bytes[7];
     const controlCode = bytes[8]-0x80;
     const dataLen = bytes[9];
-    const end = bytes[input.length - 1];
-    console.log(`start1:${dataLen}`); 
-    console.log(`start1:${input.length}`); 
-    
+    const end = bytes[bytes.length - 1];
+    console.log(`start1:${dataLen}`);
+    console.log(`start1:${bytes.length} `);
+
     // ..defaultResult, message: '帧起始符/结束符错误' };
 
 
@@ -729,7 +722,7 @@ export class DL645_2007 {
       return { ...defaultResult, message: '帧起始符/结束符错误' };
     }
 
-    if (controlCode !== 0x1C) {
+    if (controlCode !== DL645_2007_ControlCode.CONTROL) {
       return { ...defaultResult, message: `非控制应答：控制码=${controlCode.toString(16)}` };
     }
 
