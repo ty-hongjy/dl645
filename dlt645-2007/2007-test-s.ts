@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-28 17:10:40
+ * @LastEditTime: 2026-04-28 17:22:10
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -359,4 +359,17 @@ function run(methodName: string) {
   });
 }
 
-run('close');
+// ===================== 命令行参数处理 =====================
+// 从process.argv获取命令行参数（argv[0]=node路径，argv[1]=脚本路径，argv[2]=传入的方法名）
+const [, , methodName] = process.argv;
+
+// 参数校验
+if (!methodName) {
+  console.error('❌ 请传入要执行的方法名！示例：');
+  console.error('   node 2007-test-s.js close');
+  console.error('   node 2007-test-s.js open');
+  console.error('   node 2007-test-s.js cancelKeep');
+  console.error('   node 2007-test-s.js buildReadCmd');
+  process.exit(1); // 退出进程，标记参数错误
+}
+run(methodName);
