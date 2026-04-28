@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-23 11:26:37
+ * @LastEditTime: 2026-04-28 12:50:14
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -393,24 +393,18 @@ export class DL645_2007 {
       throw new Error('帧结束符错误，必须以16结尾');
     }
     // 1. 基础帧结构校验
-    if (bytes.length < 14) { // 最小帧长度：68 + 6地址 + 68 + 控制码 + 长度 + 数据 + 校验 + 16
+    if (bytes.length < 14) { // 最小帧长度：68 + 6地址 + 68 + 控制码 + 数据 + 校验 + 16
       // throw new Error('帧长度过短，不符合DL/T645-2007格式');
       const Result = this.parseControlReply(bytes);
       return { ...Result };
-      // return { ...Result, isValid: false };
     }else{
       const Result = this.parseReadResponse(bytes);
       return { ...Result, isValid: true };
     }
-
   }
 
   static parseReadResponse(frameBytes: number[]): ParseResult {
-  // static parseReadResponse(frameBytes: Buffer | number[]): ParseResult {
-    // 2. 提取核心字段
     const bytes = frameBytes;
-    // const bytes = Array.isArray(frameBytes) ? frameBytes : Array.from(frameBytes);
-
     const reversedAddressBytes = bytes.slice(1, 7); // 反转后的地址（6字节）
     const controlCode = bytes[8]; // 控制码（第9字节）
     const dataLen = bytes[9]; // 数据域长度（第10字节）
@@ -437,9 +431,9 @@ export class DL645_2007 {
       // case DL645_2007_ControlCode.CONTROL:
       //   controlCodeName = '控制命令';
       //   break;
-      case DL645_2007_ControlCode.CONTROL:
-        controlCodeName = '控制命令';
-        break;
+      // case DL645_2007_ControlCode.CONTROL:
+      //   controlCodeName = '控制命令';
+      //   break;
     }
 
     // 5. 解析数据域
@@ -592,101 +586,11 @@ export class DL645_2007 {
     return this.buildControlCmd(address, password, DL645_2007_DataId.CONTROL_CANCEL_POWER_KEEP);
   }
 
- /*
- * 扩展：DL/T645-2007 控制命令（开合闸/保电）返回数据解析
- * 基于原有DL645_2007类扩展，兼容控制命令应答帧格式
- */
-
-
-  /**
-   * 解析控制命令返回帧（开合闸/保电等）
-   * @param frameBytes 完整返回帧字节数组/Buffer
-   * @returns 控制命令解析结果
-   */
-  static parseControlResponse(frameBytes: number[]): ControlParseResult {
-  // static parseControlResponse(frameBytes: Buffer | number[]): ControlParseResult {
-    // 1. 先调用原有基础解析方法
-    // const baseResult = DL645_2007.parseFrame(frameBytes);
-    const baseResult = this.parseReadResponse(frameBytes)
-    const bytes = frameBytes;
-
-    // 2. 初始化控制命令解析结果
-    let controlStatus = ControlStatus.UNKNOWN;
-    let controlCmdType = '未知控制命令';
-
-    // 3. 验证是否为控制命令应答（控制码应为 0x9C = 0x1C + 0x80 应答位）
-    const controlCodeNum = parseInt(baseResult.controlCode, 16)-0x80;
-    const originalControlCode = controlCodeNum & 0x7F;
-    if (originalControlCode !== DL645_2007_ControlCode.CONTROL) {
-      throw new Error('非控制命令应答帧，控制码应为 0x1C（应答后为0x9C）');
-    }
-
-    // 4. 解析数据域（控制命令应答格式：密码(4)+操作员(4)+命令码(2)+状态(1)+生效时间(6)）
-    if (baseResult.parameters.length > 0 && baseResult.isCrcValid) {
-      // 还原原始数据域字节（减33H）
-      const dataLen = bytes[9]; // 数据域长度
-      const rawDataBytes = bytes.slice(10, 10 + dataLen);
-      const decodedDataBytes = this.decodeDataBytes(rawDataBytes);
-
-      // 提取命令码（第8-9字节，索引7-8）
-      if (decodedDataBytes.length >= 9) {
-        const cmdCodeBytes = decodedDataBytes.slice(8, 10).reverse(); // 反转恢复命令码
-        const cmdCode = cmdCodeBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-        // 匹配命令类型
-        controlCmdType = this.CONTROL_CMD_MAP[cmdCode]?.name || `未知命令[${cmdCode}]`;
-
-        // 提取状态码（第10字节，索引9）
-        const statusCode = decodedDataBytes[9];
-        controlStatus = this.CONTROL_STATUS_MAP[statusCode] || ControlStatus.UNKNOWN;
-      }
-    }
-
-    // 5. 组合最终解析结果
-    const controlResult: ControlParseResult = {
-      ...baseResult,
-      controlStatus,
-      controlCmdType
-    };
-
-    return controlResult;
-  }
-
-  /**
-   * 简化版：快速判断控制命令执行结果
-   * @param responseHex 完整返回帧16进制字符串（含FEFEFEFE前缀）
-   * @returns 执行状态 + 命令类型
-   */
-  static quickParseControlResult(responseHex: string): {
-    success: boolean;
-    status: ControlStatus;
-    cmdType: string;
-    isCrcValid: boolean;
-  } {
-    try {
-      const buffer = Buffer.from(responseHex, 'hex');
-      const result = this.parseControlResponse(Array.from(buffer));
-      return {
-        success: result.controlStatus === ControlStatus.SUCCESS,
-
-        status: result.controlStatus,
-        cmdType: result.controlCmdType,
-        isCrcValid: result.isCrcValid
-      };
-    } catch (e) {
-      return {
-        success: false,
-        status: ControlStatus.UNKNOWN,
-        cmdType: '解析失败',
-        isCrcValid: false
-      };
-    }
-  }
   /**
    * 解析 DLT645-2007 开合闸应答
-   * @param input 十六进制字符串（如 "68 12 34 56 78 90 12 68 91 04 XX XX XX XX XX 16"）
+   * @param frameBytes 十六进制字符串（如 "68 12 34 56 78 90 12 68 91 04 XX XX XX XX XX 16"）
    */
   static parseControlReply(frameBytes: number[]): ControlResult {
-    // 1. 统一转成数字数组
     let bytes: number[];
     bytes = frameBytes;
 
@@ -701,11 +605,6 @@ export class DL645_2007 {
       message: '无效帧'
     };
 
-    // 2. 必须是 14 字节
-    // if (bytes.length !== 14) {
-    //   return { ...defaultResult, message: `长度错误：${bytes.length} 字节（应为14）` };
-    // }
-
     // 3. 帧格式校验
     const start1 = bytes[0];
     const start2 = bytes[7];
@@ -718,7 +617,7 @@ export class DL645_2007 {
     // ..defaultResult, message: '帧起始符/结束符错误' };
 
 
-    if (start1 !== 0x68 || start2 !== 0x68 || end !== 0x16) {
+    if (start1 !== this.FRAME_START || start2 !== this.FRAME_START || end !== this.FRAME_END) {
       return { ...defaultResult, message: '帧起始符/结束符错误' };
     }
 
@@ -726,13 +625,10 @@ export class DL645_2007 {
       return { ...defaultResult, message: `非控制应答：控制码=${controlCode.toString(16)}` };
     }
 
-    // if (dataLen !== 0x04) {
-    //   return { ...defaultResult, message: `数据长度错误：${dataLen}（应为04）` };
-    // }
-
     // 4. 解析表地址（6字节，倒序）
-    const addressBytes = bytes.slice(1, 7).reverse();
-    const address = addressBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+    // const addressBytes = bytes.slice(1, 7).reverse();
+    // const address = addressBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+    const address = this.restoreAddress(bytes.slice(1, 7));
 
     // 5. 数据域（4字节）
     const rawData = bytes.slice(9, 10);
@@ -745,20 +641,17 @@ export class DL645_2007 {
     // if (crcCheck !== crc[0] || crcCheck !== crc[1]) {
     //   return { ...defaultResult, message: 'CRC校验失败' };
     // }
-    
+
     // 6. 判断操作与结果
     let operation: '合闸' | '开闸' | '未知操作' = '未知操作';
     let success = false;
     let message = '';
     console.log(` 测试${rawData}`);
-    console.log(` 测试${realData}`);
-    
-    const op = rawData[0];
-    // const hasError = rawData[1] !== 0 || rawData[2] !== 0 || rawData[3] !== 0;
+    // console.log(` 测试${realData}`);
 
+    const op = rawData[0];
     if (op === 0x00) {
       success = true;
-      // success = !hasError;
     } else {
       success = false;
     }
@@ -776,17 +669,4 @@ export class DL645_2007 {
       message
     };
   }
-}
-
-// ============== 使用示例 ==============
-// 1. 解析合闸命令返回帧
-// const responseHex = 'FEFEFEFE68120011114220689C156666666666666666666666666666660016'; // 示例返回帧
-// const result = DL645_2007_Control_Extension.parseControlResponse(Buffer.from(responseHex, 'hex'));
-// console.log('控制命令解析结果：', result);
-
-// 2. 快速判断执行结果
-// const quickResult = DL645_2007_Control_Extension.quickParseControlResult(responseHex);
-// console.log('快速解析结果：', quickResult);
-// }
-export class DL645_2007_Control_Extension { 
 }

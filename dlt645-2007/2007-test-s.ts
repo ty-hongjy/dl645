@@ -3,27 +3,75 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-23 11:22:51
+ * @LastEditTime: 2026-04-28 15:13:07
  */
 import { SerialPort } from 'serialport';
+import fs from 'fs';
+import path from 'path';
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
 
+interface SerialPortConfig {
+  path: string;
+  baudRate: number;
+  dataBits: 5 | 6 | 7 | 8 | undefined; // 5 | 6 | 7 | 8 | undefined
+  stopBits: 1 | 2 | undefined; // 1 | 2 | undefined // 1 | 2 | undefined
+  parity: 'none' | 'even' | 'odd';
+  autoOpen: boolean;
+}
+
+export interface MeterConfig {
+  address: string;
+  password: string;
+  protocol: string;
+}
+
+interface OperatorConfig {
+  timeout: number;
+  retryCount: number;
+}
+
+interface AppConfig {
+  serialPort: SerialPortConfig;
+  meter: MeterConfig;
+  operator: OperatorConfig;
+}
+
+ function loadConfig(): AppConfig {
+  try {
+    // 读取配置文件
+    const configPath = path.resolve(__dirname, 'test.json');
+    const rawData = fs.readFileSync(configPath, 'utf8');
+
+    // 转成 JSON 对象
+    const config = JSON.parse(rawData) as AppConfig;
+
+    console.log('✅ 配置文件加载成功', config);
+    return config;
+  } catch (err) {
+    console.error('❌ 加载配置文件失败：', (err as Error).message);
+    throw err;
+  }
+}
+
+const config = loadConfig();
+// console.log('✅ 配置文件加载成功', config);
 // 串口配置
 const port = new SerialPort({
-  path: 'COM4',
-  baudRate: 2400,
-  dataBits: 8,
-  parity: 'even',
-  stopBits: 1,
-  autoOpen: false // 手动打开，增加异常处理
+  path: config.serialPort.path,
+  baudRate: config.serialPort.baudRate,
+  dataBits: config.serialPort.dataBits,
+  stopBits: config.serialPort.stopBits,
+  parity: config.serialPort.parity,
+  autoOpen: config.serialPort.autoOpen,
 });
 
 // 全局缓存
 let serialBuffer = Buffer.alloc(0);
 // 测试配置
-const TEST_METER_ADDRESS = '202411110002'; 
+const TEST_METER_ADDRESS = config.meter.address; // 测试地址
 // const TEST_METER_ADDRESS = '202506110941'; 
-const TEST_PW = '02000000'; 
+const TEST_PW = config.meter.password; // 测试密码
+
 
 /**
  * 解析电表响应帧（核心修复：剥离485帧头FEFEFEFE）

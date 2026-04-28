@@ -1,0 +1,19 @@
+{
+  "serialPort": {
+    "path": "COM4",
+    "baudRate": 2400,
+    "dataBits": 8,
+    "stopBits": 1,
+    "parity": "even",
+    "autoOpen": false
+  },
+  "meter": {
+    "address": "202411110002",
+    "password": "02000000",
+    "protocol": "DLT645-2007"
+  },
+  "operator": {
+    "timeout": 3000,
+    "retryCount": 2
+  }
+}
