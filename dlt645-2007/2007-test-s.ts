@@ -3,11 +3,13 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-28 15:13:07
+ * @LastEditTime: 2026-04-28 17:10:40
  */
 import { SerialPort } from 'serialport';
-import fs from 'fs';
-import path from 'path';
+// import fs from 'fs';
+// import path from 'path';
+import * as fs from 'fs'; // 修复：命名空间导入
+import * as path from 'path'; // 修复：命名空间导入
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
 
 interface SerialPortConfig {
@@ -202,6 +204,7 @@ function openPortAndSendCommand3() {
   });
 }
 
+
 function openPortAndSendCommand4() {
   port.open((err) => {
     if (err) {
@@ -310,15 +313,50 @@ port.on('error', (err: Error) => {
 port.on('close', () => {
   console.log('串口已关闭，3秒后尝试重连...');
   // setTimeout(openPortAndSendCommand, 3000);
-  setTimeout(openPortAndSendCommand1, 3000);
+  // setTimeout(openPortAndSendCommand1, 3000);
   // setTimeout(openPortAndSendCommand2, 3000);
   // setTimeout(openPortAndSendCommand3, 3000);
   // setTimeout(openPortAndSendCommand4, 3000);
 }); 
 
-// 启动串口通信
-// openPortAndSendCommand();
-// openPortAndSendCommand1();
-// openPortAndSendCommand2();
-// openPortAndSendCommand3();
-openPortAndSendCommand4();
+/**
+ * 安全的动态命令执行函数
+ * @param methodName DL645_2007 中的方法名（如 'open'、'close'、'cancelKeep'）
+ * 安全的动态命令执行函数（临时放宽类型检查）
+ */
+function run(methodName: string) {
+  // 1. 类型断言为any，避免TS7053错误
+  const dl645 = DL645_2007 as Record<string, any>;
+
+  // 2. 校验方法是否存在
+  if (typeof dl645[methodName] !== 'function') {
+    console.error(`❌ DL645_2007 中不存在方法：${methodName}`);
+    return;
+  }
+
+  port.open((err) => {
+    if (err) {
+      console.error('串口打开失败:', err.message);
+      setTimeout(() => run(methodName), 3000);
+      return;
+    }
+
+    console.log(`串口已打开，准备执行 DL645_2007.${methodName} 命令...`);
+
+    // 3. 调用方法（通过断言后的对象）
+    const commandBytes = dl645[methodName](TEST_METER_ADDRESS, TEST_PW);
+    // 4. 输出并发送命令
+    const commandHex = commandBytes.toString('hex').toUpperCase();
+    console.log(`✅ 待发送命令字节：${commandHex}`);
+
+    port.write(commandBytes, (writeErr) => {
+      if (writeErr) {
+        console.error('命令发送失败:', writeErr.message);
+      } else {
+        console.log(`✅ 发送命令 ${methodName}（含485帧头）成功`);
+      }
+    });
+  });
+}
+
+run('close');

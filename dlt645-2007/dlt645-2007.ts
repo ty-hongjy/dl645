@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-28 12:50:14
+ * @LastEditTime: 2026-04-28 17:13:25
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -611,8 +611,8 @@ export class DL645_2007 {
     const controlCode = bytes[8]-0x80;
     const dataLen = bytes[9];
     const end = bytes[bytes.length - 1];
-    console.log(`start1:${dataLen}`);
-    console.log(`start1:${bytes.length} `);
+    // console.log(`start1:${dataLen}`);
+    // console.log(`start1:${bytes.length} `);
 
     // ..defaultResult, message: '帧起始符/结束符错误' };
 
@@ -646,7 +646,7 @@ export class DL645_2007 {
     let operation: '合闸' | '开闸' | '未知操作' = '未知操作';
     let success = false;
     let message = '';
-    console.log(` 测试${rawData}`);
+    console.log(`结果${rawData}`);
     // console.log(` 测试${realData}`);
 
     const op = rawData[0];

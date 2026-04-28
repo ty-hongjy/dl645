@@ -13,8 +13,9 @@
     "protocol": "DLT645-2007"
   },
   "operator": {
+    "operate": "read",
+    "sub-operate": "admin",
     "timeout": 3000,
-    "operate": "admin",
     "retryCount": 2
   }
 }
