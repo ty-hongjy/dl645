@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-28 17:22:10
+ * @LastEditTime: 2026-04-29 14:23:08
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -90,19 +90,9 @@ function parseMeterResponse(frame: Buffer) {
 
     // 解析DL/T645-2007规约帧
     const parseResult = DL645_2007.parseFrame(dl645Frame);
-    //  const parseResult = parseDL645DataFieldFromHex(dl645FrameHex);
     // 输出解析结果
     console.log('\n=== DL/T645-2007 响应解析结果 ===');
-    // console.log(`电表地址：${parseResult.meterAddress}`);
-    // console.log(`控制码：0x${parseResult.controlCode}（${parseResult.controlCodeName}）`);
-    // console.log(`校验结果：${parseResult.isCrcValid ? '✅ 有效' : '❌ 无效'}`);
-    // console.log(`param结果：${parseResult.parameters}`); 
     console.log('param结果（JSON格式化）：', JSON.stringify(parseResult, null, 2));
-  //   if (phaseAVoltage) {
-  //     console.log(`A相电压：${phaseAVoltage.value} ${phaseAVoltage.unit}（原始值：${phaseAVoltage.rawValue}）`);
-  //   } else {
-  //     console.log('未解析到A相电压数据');
-  //   }
   } catch (parseErr) {
     console.error('帧解析失败:', (parseErr as Error).message);
     console.error('失败帧数据:', frame.toString('hex').toUpperCase());
@@ -121,7 +111,6 @@ function openPortAndSendCommand() {
     }
 
     console.log('串口已打开，准备发送DL645-2007命令...');
-
     const commandBytes = DL645_2007.buildReadCmd(
       TEST_METER_ADDRESS,
       DL645_2007_ControlCode.READ_SINGLE,
@@ -129,21 +118,7 @@ function openPortAndSendCommand() {
       // DL645_2007_DataId.PHASE_A_CURRENT
       DL645_2007_DataId.COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION
     );
-    // 构建读A相电压命令
-    // const commandBytes = DL645_2007.buildReadRequest(
-    //   TEST_METER_ADDRESS,
-    //   DL645_2007_ControlCode.READ_SINGLE,
-    //   // DL645_2007_DataId.PHASE_A_VOLTAGE
-    //   // DL645_2007_DataId.PHASE_A_CURRENT
-    //   DL645_2007_DataId.COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION
-    // );
 
-
-    // // 拼接485帧头并发送
-    // const coreHex = DL645_2007.bytesToHexString(commandBytes);
-    // const fullHex = DL645_2007.FRAME_HEADER + coreHex;
-    // const sendBuffer = Buffer.from(fullHex, 'hex');
-    // console.log(`发送命令（含485帧头）: ${fullHex}`);
     port.write(commandBytes, (writeErr) => {
       if (writeErr) {
         console.error('命令发送失败:', writeErr.message);
@@ -179,115 +154,8 @@ function openPortAndSendCommand1() {
   });
 }
 
-function openPortAndSendCommand3() {
-  port.open((err) => {
-    if (err) {
-      console.error('串口打开失败:', err.message);
-      setTimeout(openPortAndSendCommand, 3000); // 重试
-      return;
-    }
-
-    console.log('串口已打开，准备发送DL645-2007命令...');
-
-    const commandBytes = DL645_2007.cancelKeep(
-      TEST_METER_ADDRESS,
-      TEST_PW
-    );
-    console.log(`commandBytes:${commandBytes.toString('hex').toUpperCase()}`);
-    port.write(commandBytes , (writeErr) => {
-      if (writeErr) {
-        console.error('命令发送失败:', writeErr.message);
-      } else {
-        console.log(`发送命令cancel protect（含485帧头）`);
-      }
-    });
-  });
-}
-
-
-function openPortAndSendCommand4() {
-  port.open((err) => {
-    if (err) {
-      console.error('串口打开失败:', err.message);
-      setTimeout(openPortAndSendCommand, 3000); // 重试
-      return;
-    }
-
-    console.log('串口已打开，准备发送DL645-2007命令...');
-
-    const commandBytes = DL645_2007.close(
-      TEST_METER_ADDRESS,
-      TEST_PW
-    );
-    console.log(`commandBytes:${commandBytes.toString('hex').toUpperCase()}`);
-    port.write(commandBytes , (writeErr) => {
-      if (writeErr) {
-        console.error('命令发送失败:', writeErr.message);
-      } else {
-        console.log(`发送命令on（含485帧头）`);
-      }
-    });
-  });
-}
-
-function openPortAndSendCommand2() {
-  port.open((err) => {
-    if (err) {
-      console.error('串口打开失败:', err.message);
-      setTimeout(openPortAndSendCommand, 3000); // 重试
-      return;
-    }
-
-    console.log('串口已打开，准备发送DL645-2007命令...');
-
-    // const commandBytes = cancelProtect(
-    //   TEST_METER_ADDRESS,
-    //   TEST_PW
-    // );
-
-    const commandBytes = DL645_2007.cancelKeep(
-      TEST_METER_ADDRESS,
-      TEST_PW
-    );
-
-    port.write(commandBytes , (writeErr) => {
-      if (writeErr) {
-        console.error('命令发送失败:', writeErr.message);
-      } else {
-        console.log(`发送命令cancel protect（含485帧头）: ${commandBytes}`);
-      }
-    });
-  });
-
-  //  延时1s后发送开闸命令
- 
- setTimeout(() => { 
-  console.log('延时1s后发送开闸命令...');
-  const commandBytes = DL645_2007.open(
-        TEST_METER_ADDRESS,
-        TEST_PW
-      );
-
-      port.write(commandBytes , (writeErr) => {
-        if (writeErr) {
-          console.error('命令发送失败:', writeErr.message);
-        } else {
-          console.log(`发送命令off（含485帧头）: ${commandBytes}`);
-        }
-      });
-  },
-   1000);
-}
 // 串口数据监听
 port.on('data', (data: Buffer) => {
-//   const phaseAVoltageBytes = [0x45, 0x33, 0x33, 0x33]; // 原始数据域字节（未减33H）
-//   const voltageResult = parseDataFieldOnly(phaseAVoltageBytes, DL645_2007_DataId.PHASE_A_VOLTAGE);
-//   console.log('A相电压解析结果：', voltageResult);
-
-// // 示例2：解析总电能数据域
-// const totalEnergyBytes = [0x34, 0x33, 0x34, 0x33]; // 原始数据域字节（未减33H）
-// const energyResult = parseDataFieldOnly(totalEnergyBytes, DL645_2007_DataId.TOTAL_ACTIVE_ENERGY);
-// console.log('总电能解析结果：', energyResult);
   console.log(`\n收到原始数据（长度：${data.length}字节）: ${data.toString('hex').toUpperCase()}`);
 
   // 拼接缓存
@@ -313,10 +181,6 @@ port.on('error', (err: Error) => {
 port.on('close', () => {
   console.log('串口已关闭，3秒后尝试重连...');
   // setTimeout(openPortAndSendCommand, 3000);
-  // setTimeout(openPortAndSendCommand1, 3000);
-  // setTimeout(openPortAndSendCommand2, 3000);
-  // setTimeout(openPortAndSendCommand3, 3000);
-  // setTimeout(openPortAndSendCommand4, 3000);
 }); 
 
 /**
@@ -372,4 +236,5 @@ if (!methodName) {
   console.error('   node 2007-test-s.js buildReadCmd');
   process.exit(1); // 退出进程，标记参数错误
 }
+
 run(methodName);
