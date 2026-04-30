@@ -236,7 +236,6 @@ function run(methodName: string,params1:string ="") {
 const [, , methodName,params1,params2] = process.argv;
 
 // 参数校验
-
 if (!methodName) {
   console.error('❌ 请传入要执行的方法名！示例：');
   console.error('   node 2007-test-s.js close');
@@ -250,14 +249,13 @@ if (!methodName) {
 if(methodName === 'buildReadCmd'){
   if  (!params1) {
     console.error('❌ 请传入参数1！示例：');
-    console.error('   DL645_2007_DataId.COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION');
-    console.error('   DL645_2007_DataId.TOTAL_ACTIVE_POWER');
-    console.error('   DL645_2007_DataId.TOTAL_ACTIVE_ENERGY');
-    console.error('   DL645_2007_DataId.TOTAL_ACTIVE_POWER');
+    console.error('   COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION');
+    console.error('   TOTAL_ACTIVE_POWER');
+    console.error('   TOTAL_ACTIVE_ENERGY');
+    console.error('   TOTAL_ACTIVE_POWER');
     process.exit(1); // 退出进程，标记参数错误
   }
   run(methodName,params1);
 }else{
   run(methodName);
 }
-// run(methodName);

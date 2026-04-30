@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-28 17:13:25
+ * @LastEditTime: 2026-04-30 15:07:23
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -26,8 +26,9 @@ export enum DL645_2007_DataId {
   PHASE_C_ACTIVE_POWER = '02030300', // C相有功功率
 
   TOTAL_ACTIVE_POWER = '02040000',   // 总有功功率
-  TOTAL_ACTIVE_ENERGY = '00010000',  // 总能耗/总正有功电能
-  COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION = '00000000', // 组合有功总能耗
+  TOTAL_ACTIVE_ENERGY = '00010000',  // 正向有功总电能
+  COMBINED_TOTAL_ENERGY = '00000000', // 组合有功总能耗
+  COMBINED_ENERGY_DATA_BLOCK = '0000FF00', // 组合有功总能耗数据块
 
   // 控制命令
   CONTROL_OPEN = '1A00',         // 合闸
