@@ -71,7 +71,7 @@ export interface ControlResult {
   operation: '合闸' | '开闸' | '未知操作';
   address: string;         // 表号（正序）
   rawData: number[];       // 原始数据域（4字节）
-  realData: number[];      // 减 0x33 后的真实数据
+  // realData: number[];      // 减 0x33 后的真实数据
   isValidFrame: boolean;   // 是否是合法的控制应答帧
   message: string;         // 说明文字
 }
@@ -600,7 +600,7 @@ export class DL645_2007 {
       operation: '未知操作',
       address: '',
       rawData: [],
-      realData: [],
+      // realData: [],
       isValidFrame: false,
       message: '无效帧'
     };
@@ -664,7 +664,6 @@ export class DL645_2007 {
       operation,
       address,
       rawData,
-      realData,
       isValidFrame: true,
       message
     };

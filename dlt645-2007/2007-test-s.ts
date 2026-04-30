@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-29 14:23:08
+ * @LastEditTime: 2026-04-30 10:33:43
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -188,14 +188,23 @@ port.on('close', () => {
  * @param methodName DL645_2007 中的方法名（如 'open'、'close'、'cancelKeep'）
  * 安全的动态命令执行函数（临时放宽类型检查）
  */
-function run(methodName: string) {
+function run(methodName: string,params1:string ="") {
   // 1. 类型断言为any，避免TS7053错误
   const dl645 = DL645_2007 as Record<string, any>;
+  let commandBytes: Buffer;
+  console.log(`targetDataId:${methodName},params1:${params1}`);
 
-  // 2. 校验方法是否存在
+    // 2. 校验方法是否存在
   if (typeof dl645[methodName] !== 'function') {
     console.error(`❌ DL645_2007 中不存在方法：${methodName}`);
     return;
+  }else if(methodName === 'buildReadCmd' && params1 !== ""){
+    const targetDataId = DL645_2007_DataId[params1 as keyof typeof DL645_2007_DataId];
+    console.log(`targetDataId:${targetDataId}`);
+    // const params = DL645_2007_DataId[params1];
+    commandBytes = dl645[methodName](TEST_METER_ADDRESS,DL645_2007_ControlCode.READ_SINGLE ,targetDataId);
+  }else{
+    commandBytes = dl645[methodName](TEST_METER_ADDRESS, TEST_PW);
   }
 
   port.open((err) => {
@@ -208,7 +217,6 @@ function run(methodName: string) {
     console.log(`串口已打开，准备执行 DL645_2007.${methodName} 命令...`);
 
     // 3. 调用方法（通过断言后的对象）
-    const commandBytes = dl645[methodName](TEST_METER_ADDRESS, TEST_PW);
     // 4. 输出并发送命令
     const commandHex = commandBytes.toString('hex').toUpperCase();
     console.log(`✅ 待发送命令字节：${commandHex}`);
@@ -225,16 +233,31 @@ function run(methodName: string) {
 
 // ===================== 命令行参数处理 =====================
 // 从process.argv获取命令行参数（argv[0]=node路径，argv[1]=脚本路径，argv[2]=传入的方法名）
-const [, , methodName] = process.argv;
+const [, , methodName,params1,params2] = process.argv;
 
 // 参数校验
+
 if (!methodName) {
   console.error('❌ 请传入要执行的方法名！示例：');
   console.error('   node 2007-test-s.js close');
   console.error('   node 2007-test-s.js open');
   console.error('   node 2007-test-s.js cancelKeep');
+  console.error('   node 2007-test-s.js keep');
   console.error('   node 2007-test-s.js buildReadCmd');
   process.exit(1); // 退出进程，标记参数错误
 }
 
-run(methodName);
+if(methodName === 'buildReadCmd'){
+  if  (!params1) {
+    console.error('❌ 请传入参数1！示例：');
+    console.error('   DL645_2007_DataId.COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION');
+    console.error('   DL645_2007_DataId.TOTAL_ACTIVE_POWER');
+    console.error('   DL645_2007_DataId.TOTAL_ACTIVE_ENERGY');
+    console.error('   DL645_2007_DataId.TOTAL_ACTIVE_POWER');
+    process.exit(1); // 退出进程，标记参数错误
+  }
+  run(methodName,params1);
+}else{
+  run(methodName);
+}
+// run(methodName);
