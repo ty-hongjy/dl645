@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-04-30 10:33:43
+ * @LastEditTime: 2026-05-04 14:27:46
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -116,7 +116,7 @@ function openPortAndSendCommand() {
       DL645_2007_ControlCode.READ_SINGLE,
       // DL645_2007_DataId.PHASE_A_VOLTAGE
       // DL645_2007_DataId.PHASE_A_CURRENT
-      DL645_2007_DataId.COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION
+      DL645_2007_DataId.COMBINED_ACTIVE_ENERGY
     );
 
     port.write(commandBytes, (writeErr) => {
@@ -169,6 +169,8 @@ port.on('data', (data: Buffer) => {
     console.log(`完整帧（长度：${completeFrame.length}字节）: ${completeFrame.toString('hex').toUpperCase()}`);
     // 解析帧
     parseMeterResponse(completeFrame);
+    port.close();
+    break;
   }
 });
 
@@ -183,6 +185,26 @@ port.on('close', () => {
   // setTimeout(openPortAndSendCommand, 3000);
 }); 
 
+function run1() { 
+// 1. 读取单个费率（如谷段电量）
+// const meterAddress = '202411110002'; // 电表地址
+const valleyCmd = DL645_2007.buildReadMultiRateCmd(TEST_METER_ADDRESS, 'valley');
+console.log('读取谷段电量命令:', valleyCmd.toString('hex').toUpperCase());
+
+// 2. 批量读取所有分时电量
+const batchCmds = DL645_2007.buildBatchReadMultiRateCmds(TEST_METER_ADDRESS);
+batchCmds.forEach((cmd, index) => {
+  const rateType = ['尖', '平', '谷', '峰', '总'][index];
+  console.log(`读取${rateType}段电量命令:`, cmd.toString('hex').toUpperCase());
+});
+
+// 3. 解析分时电量应答帧（复用原有parseFrame方法）
+// 假设收到电表应答帧（十六进制Buffer）
+const responseFrame = Buffer.from('6820001111420268910C000200003333333333333333333333337716', 'hex');
+// const responseFrame = Buffer.from('FEFEFEFE6820001111420268910C000200003333333333333333333333337716', 'hex');
+const parseResult = DL645_2007.parseFrame(responseFrame);
+console.log('分时电量解析结果:', JSON.stringify(parseResult, null, 2));
+}
 /**
  * 安全的动态命令执行函数
  * @param methodName DL645_2007 中的方法名（如 'open'、'close'、'cancelKeep'）
@@ -256,6 +278,8 @@ if(methodName === 'buildReadCmd'){
     process.exit(1); // 退出进程，标记参数错误
   }
   run(methodName,params1);
+}else if(methodName === 'buildReadMultiCmd'){
+  run1();
 }else{
   run(methodName);
 }

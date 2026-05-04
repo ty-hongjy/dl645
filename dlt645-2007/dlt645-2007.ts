@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-04-30 15:07:23
+ * @LastEditTime: 2026-05-04 13:54:16
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -27,9 +27,15 @@ export enum DL645_2007_DataId {
 
   TOTAL_ACTIVE_POWER = '02040000',   // 总有功功率
   TOTAL_ACTIVE_ENERGY = '00010000',  // 正向有功总电能
-  COMBINED_TOTAL_ENERGY = '00000000', // 组合有功总能耗
-  COMBINED_ENERGY_DATA_BLOCK = '0000FF00', // 组合有功总能耗数据块
+  COMBINED_ACTIVE_ENERGY = '00000000', // 组合有功总电能
+  COMBINED_ACTIVE_ENERGY_DATA_BLOCK = '0000FF00', // 组合有功总能耗数据块
 
+  //正向有功多费率数据块（分时电量核心标识）
+  FORWARD_ACTIVE_MULTI_RATE = '00020000', // 正向有功多费率数据块（总+尖峰平谷）
+  FORWARD_ACTIVE_PEAK = '00020100',       // 正向有功尖段电量
+  FORWARD_ACTIVE_FLAT = '00020200',       // 正向有功平段电量
+  FORWARD_ACTIVE_VALLEY = '00020300',     // 正向有功谷段电量
+  FORWARD_ACTIVE_SUPER_PEAK = '00020400', // 正向有功峰段（超尖峰）
   // 控制命令
   CONTROL_OPEN = '1A00',         // 合闸
   CONTROL_CLOSE = '1C00',        // 拉闸
@@ -103,18 +109,27 @@ export interface ControlParseResult extends ParseResult {
 export class DL645_2007 {
   static readonly DATA_ID_MAP = {
     '00000000': { name: '组合总有功电能', unit: 'kWh', scale: 0.01 },
+
     '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },
     '02010200': { name: 'B相电压', unit: 'V', scale: 0.1 },
     '02010300': { name: 'C相电压', unit: 'V', scale: 0.1 },
+
     '02020100': { name: 'A相电流', unit: 'A', scale: 0.001 },
     '02020200': { name: 'B相电流', unit: 'A', scale: 0.001 },
     '02020300': { name: 'C相电流', unit: 'A', scale: 0.001 },
+
     '02030100': { name: 'A相有功功率', unit: 'kW', scale: 0.01 },
     '02030200': { name: 'B相有功功率', unit: 'kW', scale: 0.01 },
     '02030300': { name: 'C相有功功率', unit: 'kW', scale: 0.01 },
     '00010000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
-    '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 }
-  };
+    '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
+
+    // 分时电量配置
+    '00020000': { name: '正向有功多费率总电量', unit: 'kWh', scale: 0.01 },
+    '00020100': { name: '正向有功尖段电量', unit: 'kWh', scale: 0.01 },
+    '00020200': { name: '正向有功平段电量', unit: 'kWh', scale: 0.01 },
+    '00020300': { name: '正向有功谷段电量', unit: 'kWh', scale: 0.01 },
+    '00020400': { name: '正向有功峰段电量', unit: 'kWh', scale: 0.01 },  };
 
   static readonly CONTROL_CMD_MAP = {
     '1A00': { name: '拉闸', statusOffset: 0 },
@@ -255,23 +270,42 @@ export class DL645_2007 {
   }
 
   /**
-   * 组装控制命令报文
-   * @param meterAddress 电表地址
-   * @param controlCode 控制码（固定为CONTROL 0x13）
-   * @param dataId 控制命令标识
-   * @returns 完整的报文字节数组
-   */
-  // static buildControlRequest(
-  //   meterAddress: string,
-  //   controlCode: DL645_2007_ControlCode,
-  //   dataId: DL645_2007_DataId
-  // ): number[] {
-  //   if (controlCode !== DL645_2007_ControlCode.CONTROL) {
-  //     throw new Error('控制命令必须使用CONTROL控制码(0x13)');
-  //   }
-  //   return this.buildReadRequest(meterAddress, controlCode, dataId);
-  // }
+ * 读取分时电量（正向有功多费率数据）
+ * @param meterAddress 电表地址（12位十六进制字符串）
+ * @param rateType 费率类型（尖/平/谷/峰/总，默认读取总多费率数据）
+ * @returns 完整的读命令Buffer（含485帧头）
+ */
+static buildReadMultiRateCmd(
+  meterAddress: string,
+  rateType: 'peak' | 'flat' | 'valley' | 'superPeak' | 'total' = 'total'
+): Buffer {
+  // 映射费率类型到数据标识
+  const rateDataIdMap: Record<string, DL645_2007_DataId> = {
+    total: DL645_2007_DataId.FORWARD_ACTIVE_MULTI_RATE,
+    peak: DL645_2007_DataId.FORWARD_ACTIVE_PEAK,
+    flat: DL645_2007_DataId.FORWARD_ACTIVE_FLAT,
+    valley: DL645_2007_DataId.FORWARD_ACTIVE_VALLEY,
+    superPeak: DL645_2007_DataId.FORWARD_ACTIVE_SUPER_PEAK
+  };
+  
+  const targetDataId = rateDataIdMap[rateType];
+  // 复用原有读命令构建逻辑
+  return this.buildReadCmd(
+    meterAddress,
+    DL645_2007_ControlCode.READ_SINGLE,
+    targetDataId
+  );
+}
 
+/**
+ * 批量读取所有分时电量（尖+平+谷+峰+总）
+ * @param meterAddress 电表地址
+ * @returns 批量读命令数组（按尖、平、谷、峰、总顺序）
+ */
+static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
+  const rateTypes = ['peak', 'flat', 'valley', 'superPeak', 'total'] as const;
+  return rateTypes.map(type => this.buildReadMultiRateCmd(meterAddress, type));
+}
   /**
    * 字节数组转无空格十六进制字符串（强制大写）
    * @param bytes 字节数组
@@ -350,7 +384,7 @@ export class DL645_2007 {
 
     // 步骤2：按控制码判断数据域结构（读命令：数据标识(4字节)+数据(N字节)）
     const originalControlCode = controlCode & 0x7F; // 去掉应答位0x80
-    if (originalControlCode !== 0x11) { // 仅处理读单个数据命令
+    if (originalControlCode !== DL645_2007_ControlCode.READ_SINGLE) { // 仅处理读单个数据命令
       throw new Error(`暂不支持控制码0x${controlCode.toString(16)}的数据域解析`);
     }
 
@@ -361,6 +395,11 @@ export class DL645_2007 {
     const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
 
     // 步骤4：提取数据（数据标识后所有字节），16进制BCD格式转为十进制整数
+    if (dataId===DL645_2007_DataId.COMBINED_ACTIVE_ENERGY_DATA_BLOCK){
+      const i=0;
+    }else {const i=3;
+    }
+
     const valueBytes = decodedBytes.slice(4);
     console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
     let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
