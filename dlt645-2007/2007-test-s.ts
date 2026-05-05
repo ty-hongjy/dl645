@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-05-04 14:27:46
+ * @LastEditTime: 2026-05-05 22:17:18
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -194,13 +194,14 @@ console.log('读取谷段电量命令:', valleyCmd.toString('hex').toUpperCase()
 // 2. 批量读取所有分时电量
 const batchCmds = DL645_2007.buildBatchReadMultiRateCmds(TEST_METER_ADDRESS);
 batchCmds.forEach((cmd, index) => {
-  const rateType = ['尖', '平', '谷', '峰', '总'][index];
+  // const rateType = ['尖', '平', '谷', '峰', '总'][index];
+  const rateType = ['peak', 'flat', 'valley', 'superPeak', 'total'][index];
   console.log(`读取${rateType}段电量命令:`, cmd.toString('hex').toUpperCase());
 });
 
 // 3. 解析分时电量应答帧（复用原有parseFrame方法）
 // 假设收到电表应答帧（十六进制Buffer）
-const responseFrame = Buffer.from('6820001111420268910C000200003333333333333333333333337716', 'hex');
+const responseFrame = Buffer.from('68200011114202689110000200003333333333333333333333337716', 'hex');
 // const responseFrame = Buffer.from('FEFEFEFE6820001111420268910C000200003333333333333333333333337716', 'hex');
 const parseResult = DL645_2007.parseFrame(responseFrame);
 console.log('分时电量解析结果:', JSON.stringify(parseResult, null, 2));

@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-04 13:54:16
+ * @LastEditTime: 2026-05-05 22:26:13
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -287,7 +287,7 @@ static buildReadMultiRateCmd(
     valley: DL645_2007_DataId.FORWARD_ACTIVE_VALLEY,
     superPeak: DL645_2007_DataId.FORWARD_ACTIVE_SUPER_PEAK
   };
-  
+  // 映射到目标数据标识
   const targetDataId = rateDataIdMap[rateType];
   // 复用原有读命令构建逻辑
   return this.buildReadCmd(
@@ -306,7 +306,9 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
   const rateTypes = ['peak', 'flat', 'valley', 'superPeak', 'total'] as const;
   return rateTypes.map(type => this.buildReadMultiRateCmd(meterAddress, type));
 }
-  /**
+
+
+/**
    * 字节数组转无空格十六进制字符串（强制大写）
    * @param bytes 字节数组
    * @returns 大写十六进制字符串
@@ -378,6 +380,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
    * @param dataBytes 接收的原始数据域字节（未减33H）
    * @returns 解析结果
    */
+  // static parseDataField(controlCode: number, dataBytes: number[]): void {
   static parseDataField(controlCode: number, dataBytes: number[]): ParameterResult {
     // 步骤1：还原数据域（减33H）
     const decodedBytes = this.decodeDataBytes(dataBytes);
@@ -395,25 +398,51 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
 
     // 步骤4：提取数据（数据标识后所有字节），16进制BCD格式转为十进制整数
+    let i=0;
     if (dataId===DL645_2007_DataId.COMBINED_ACTIVE_ENERGY_DATA_BLOCK){
-      const i=0;
-    }else {const i=3;
+      i=3;
+    }else {i=1;
     }
+    console.log('i:', i,"dataId:",dataId);
+    let result: ParameterResult= {dataId,name: dataIdConfig.name, rawValue: 0, value: 0, unit: dataIdConfig.unit};
 
-    const valueBytes = decodedBytes.slice(4);
-    console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
-    let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-    console.log('数据域字节10进制BCD：', v1);
-    const rawValue = parseInt(v1);
-    const value = rawValue * dataIdConfig.scale;
-
-    return {
-      dataId,
-      name: dataIdConfig.name,
-      rawValue,
-      value,
-      unit: dataIdConfig.unit
-    };
+    for (let i = 0; i < 4; i++) { 
+      const valueBytes = decodedBytes.slice(4*i,4*i+4);
+      console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
+      let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+      console.log('数据域字节10进制BCD：', v1);
+      const rawValue = parseInt(v1);
+      const value = rawValue * dataIdConfig.scale;
+      result = {
+        dataId,
+        name: dataIdConfig.name,
+        rawValue,
+        value,
+        unit: dataIdConfig.unit
+      };
+      console.log('解析结果：', result);
+    }
+    // const valueBytes = decodedBytes.slice(4+i,4+i+4);
+    // console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
+    // let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    // console.log('数据域字节10进制BCD：', v1);
+    // const rawValue = parseInt(v1);
+    // const value = rawValue * dataIdConfig.scale;
+    // const result: ParameterResult = {
+    //   dataId,
+    //   name: dataIdConfig.name,
+    //   rawValue,
+    //   value,
+    //   unit: dataIdConfig.unit
+    // };
+    return result;
+    // return {
+    //   dataId,
+    //   name: dataIdConfig.name,
+    //   rawValue,
+    //   value,
+    //   unit: dataIdConfig.unit
+    // };
   }
 
   /**
@@ -448,10 +477,13 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     const reversedAddressBytes = bytes.slice(1, 7); // 反转后的地址（6字节）
     const controlCode = bytes[8]; // 控制码（第9字节）
     const dataLen = bytes[9]; // 数据域长度（第10字节）
+    console.log('数据域长度:', dataLen);
     const dataFieldBytes = bytes.slice(10, 10 + dataLen); // 原始数据域字节
+    console.log('原始数据域字节：', dataFieldBytes.toString().toUpperCase());
+    console.log('原始数据域字节：', dataFieldBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(''));
     const checksum = bytes[10 + dataLen]; // 校验码
     const meterAddress = this.restoreAddress(reversedAddressBytes); // 恢复原始地址
-    console.log('原始数据域字节：', dataFieldBytes);
+    // console.log('原始数据域字节：', dataFieldBytes);
 
     // 3. 校验码验证（模256求和）
     const checkSource = bytes.slice(0, 10 + dataLen); // 校验范围：从第一个68到数据域结束
