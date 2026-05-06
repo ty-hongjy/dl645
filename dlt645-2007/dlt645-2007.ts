@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-06 12:45:39
+ * @LastEditTime: 2026-05-06 16:32:35
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -225,9 +225,19 @@ export class DL645_2007 {
 
     const rawBytes: number[] = [];
     for (let i = 0; i < 8; i += 2) {
+      // const byte = parseInt(dataId.substr(i, 2), 16);
+      // console.log("dataIdToRawBytes:",byte,i,dataId.substr(i, 2));
       rawBytes.push(parseInt(dataId.substr(i, 2), 16));
+
+      // if (byte > 0x100) {
+      //   rawBytes.push(byte -0x100);
+      // } else {
+      // rawBytes.push(byte);
+      // }
     }
-    return rawBytes.reverse();
+    console.log("dataIdToRawBytes:",rawBytes,rawBytes.reverse().toString());
+    return rawBytes;
+    // return rawBytes.reverse();
   }
 
   /**
@@ -243,7 +253,11 @@ export class DL645_2007 {
     // 2. 数据标识转原始字节数组（已反转）
     const rawDataBytes = this.dataIdToRawBytes(dataId);
     // 3. 数据域每位加33（核心规则）
-    const sendDataBytes = rawDataBytes.map(byte => byte + this.DATA_OFFSET);
+    const sendDataBytes = rawDataBytes.map(byte => (byte + this.DATA_OFFSET) & 0xff);
+    console.log("sendDataBytes:",sendDataBytes);
+    for (let i = 0; i < rawDataBytes.length; i++) {
+      console.log("sendDataBytes:",sendDataBytes[i]+this.DATA_OFFSET & 0xff,"sendDataBytes[i]+this.DATA_OFFSET & 0xff");
+    }
 
     // 4. 构建校验范围字节数组（从第一个帧起始符到数据域结束）
     const checkSource = [
