@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-05 22:26:13
+ * @LastEditTime: 2026-05-06 10:38:51
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -25,17 +25,19 @@ export enum DL645_2007_DataId {
   PHASE_B_ACTIVE_POWER = '02030200', // B相有功功率
   PHASE_C_ACTIVE_POWER = '02030300', // C相有功功率
 
-  TOTAL_ACTIVE_POWER = '02040000',   // 总有功功率
-  TOTAL_ACTIVE_ENERGY = '00010000',  // 正向有功总电能
-  COMBINED_ACTIVE_ENERGY = '00000000', // 组合有功总电能
+  // TOTAL_ACTIVE_POWER = '02040000',   // 总有功功率
+  COMBINED_ACTIVE_TOTAL_ENERGY = '00000000', // 组合有功总电能
   COMBINED_ACTIVE_ENERGY_DATA_BLOCK = '0000FF00', // 组合有功总能耗数据块
 
   //正向有功多费率数据块（分时电量核心标识）
-  FORWARD_ACTIVE_MULTI_RATE = '00020000', // 正向有功多费率数据块（总+尖峰平谷）
-  FORWARD_ACTIVE_PEAK = '00020100',       // 正向有功尖段电量
-  FORWARD_ACTIVE_FLAT = '00020200',       // 正向有功平段电量
-  FORWARD_ACTIVE_VALLEY = '00020300',     // 正向有功谷段电量
-  FORWARD_ACTIVE_SUPER_PEAK = '00020400', // 正向有功峰段（超尖峰）
+  // FORWARD_ACTIVE_MULTI_RATE = '00020000', // 正向有功多费率数据块（总+尖峰平谷）
+  FORWARD_ACTIVE_TOTAL_ENERGY = '00010000',  // 正向有功总电能
+  FORWARD_ACTIVE_PEAK = '00010100',       // 正向有功峰段电量
+  FORWARD_ACTIVE_FLAT = '00010200',       // 正向有功平段电量
+  FORWARD_ACTIVE_VALLEY = '00010300',     // 正向有功谷段电量
+  FORWARD_ACTIVE_SUPER_PEAK = '00010400', // 正向有功尖段电量（超尖峰）
+  FORWARD_ACTIVE_ENERGY_DATA_BLOCK = '0001FF00', // 正向有功总能耗数据块
+
   // 控制命令
   CONTROL_OPEN = '1A00',         // 合闸
   CONTROL_CLOSE = '1C00',        // 拉闸
@@ -45,10 +47,10 @@ export enum DL645_2007_DataId {
 
 // 控制码枚举
 export enum DL645_2007_ControlCode {
-  READ_SINGLE = 0x11,    // 读单个数据
-  READ_BATCH = 0x12,     // 批量读数据
-  // CONTROL = 0x13,        // 控制命令
-  CONTROL = 0x1C // 扩展控制码（对应oc1中的1C）
+  READ_SINGLE = 0x11,   // 读单个数据
+  READ_BATCH = 0x12,    // 批量读数据
+  // CONTROL = 0x13,    // 控制
+  CONTROL = 0x1C        // 控制命令
 }
 
 // 类型定义
@@ -121,15 +123,17 @@ export class DL645_2007 {
     '02030100': { name: 'A相有功功率', unit: 'kW', scale: 0.01 },
     '02030200': { name: 'B相有功功率', unit: 'kW', scale: 0.01 },
     '02030300': { name: 'C相有功功率', unit: 'kW', scale: 0.01 },
-    '00010000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
-    '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
+    // '00010000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
+    // '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
 
     // 分时电量配置
-    '00020000': { name: '正向有功多费率总电量', unit: 'kWh', scale: 0.01 },
-    '00020100': { name: '正向有功尖段电量', unit: 'kWh', scale: 0.01 },
-    '00020200': { name: '正向有功平段电量', unit: 'kWh', scale: 0.01 },
-    '00020300': { name: '正向有功谷段电量', unit: 'kWh', scale: 0.01 },
-    '00020400': { name: '正向有功峰段电量', unit: 'kWh', scale: 0.01 },  };
+    '00010000': { name: '正向有功总电量', unit: 'kWh', scale: 0.01 },
+    '00010100': { name: '正向有功峰段电量', unit: 'kWh', scale: 0.01 },
+    '00010200': { name: '正向有功平段电量', unit: 'kWh', scale: 0.01 },
+    '00010300': { name: '正向有功谷段电量', unit: 'kWh', scale: 0.01 },
+    '00010400': { name: '正向有功尖段电量', unit: 'kWh', scale: 0.01 },
+    '0001FF00': { name: '正向有功电量数据块', unit: 'kWh', scale: 0.01 }
+  };
 
   static readonly CONTROL_CMD_MAP = {
     '1A00': { name: '拉闸', statusOffset: 0 },
@@ -281,11 +285,12 @@ static buildReadMultiRateCmd(
 ): Buffer {
   // 映射费率类型到数据标识
   const rateDataIdMap: Record<string, DL645_2007_DataId> = {
-    total: DL645_2007_DataId.FORWARD_ACTIVE_MULTI_RATE,
+    total: DL645_2007_DataId.FORWARD_ACTIVE_TOTAL_ENERGY,
     peak: DL645_2007_DataId.FORWARD_ACTIVE_PEAK,
     flat: DL645_2007_DataId.FORWARD_ACTIVE_FLAT,
     valley: DL645_2007_DataId.FORWARD_ACTIVE_VALLEY,
-    superPeak: DL645_2007_DataId.FORWARD_ACTIVE_SUPER_PEAK
+    superPeak: DL645_2007_DataId.FORWARD_ACTIVE_SUPER_PEAK,
+    data_block: DL645_2007_DataId.FORWARD_ACTIVE_ENERGY_DATA_BLOCK
   };
   // 映射到目标数据标识
   const targetDataId = rateDataIdMap[rateType];
@@ -398,16 +403,17 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     const dataIdConfig = this.DATA_ID_MAP[dataId] || { name: '未知参数', unit: '', scale: 1 };
 
     // 步骤4：提取数据（数据标识后所有字节），16进制BCD格式转为十进制整数
-    let i=0;
+    let k=0;
     if (dataId===DL645_2007_DataId.COMBINED_ACTIVE_ENERGY_DATA_BLOCK){
-      i=3;
-    }else {i=1;
+      k=3;
+    }else {k=1;
     }
-    console.log('i:', i,"dataId:",dataId);
+    console.log('k:', k,"dataId:",dataId);
     let result: ParameterResult= {dataId,name: dataIdConfig.name, rawValue: 0, value: 0, unit: dataIdConfig.unit};
 
-    for (let i = 0; i < 4; i++) { 
-      const valueBytes = decodedBytes.slice(4*i,4*i+4);
+    for (let i = 0; i < k; i++) { 
+      const valueBytes = decodedBytes.slice(4,8);
+      // const valueBytes = decodedBytes.slice(8*i,8*i+8);
       console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
       let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
       console.log('数据域字节10进制BCD：', v1);

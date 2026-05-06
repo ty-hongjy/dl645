@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-05-05 22:17:18
+ * @LastEditTime: 2026-05-06 10:45:32
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -116,7 +116,7 @@ function openPortAndSendCommand() {
       DL645_2007_ControlCode.READ_SINGLE,
       // DL645_2007_DataId.PHASE_A_VOLTAGE
       // DL645_2007_DataId.PHASE_A_CURRENT
-      DL645_2007_DataId.COMBINED_ACTIVE_ENERGY
+      DL645_2007_DataId.COMBINED_ACTIVE_TOTAL_ENERGY
     );
 
     port.write(commandBytes, (writeErr) => {
@@ -169,7 +169,7 @@ port.on('data', (data: Buffer) => {
     console.log(`完整帧（长度：${completeFrame.length}字节）: ${completeFrame.toString('hex').toUpperCase()}`);
     // 解析帧
     parseMeterResponse(completeFrame);
-    port.close();
+    // port.close();
     break;
   }
 });
@@ -201,7 +201,7 @@ batchCmds.forEach((cmd, index) => {
 
 // 3. 解析分时电量应答帧（复用原有parseFrame方法）
 // 假设收到电表应答帧（十六进制Buffer）
-const responseFrame = Buffer.from('68200011114202689110000200003333333333333333333333337716', 'hex');
+const responseFrame = Buffer.from('68200011114202689120000200003333333333333333333333337716', 'hex');
 // const responseFrame = Buffer.from('FEFEFEFE6820001111420268910C000200003333333333333333333333337716', 'hex');
 const parseResult = DL645_2007.parseFrame(responseFrame);
 console.log('分时电量解析结果:', JSON.stringify(parseResult, null, 2));
@@ -224,6 +224,10 @@ function run(methodName: string,params1:string ="") {
   }else if(methodName === 'buildReadCmd' && params1 !== ""){
     const targetDataId = DL645_2007_DataId[params1 as keyof typeof DL645_2007_DataId];
     console.log(`targetDataId:${targetDataId}`);
+    if (targetDataId ==undefined){
+      console.error(`❌ DL645_2007_DataId 中不存在参数：${params1}`);
+      return;
+    }
     // const params = DL645_2007_DataId[params1];
     commandBytes = dl645[methodName](TEST_METER_ADDRESS,DL645_2007_ControlCode.READ_SINGLE ,targetDataId);
   }else{
