@@ -412,8 +412,8 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     let result: ParameterResult= {dataId,name: dataIdConfig.name, rawValue: 0, value: 0, unit: dataIdConfig.unit};
 
     for (let i = 0; i < k; i++) { 
-      const valueBytes = decodedBytes.slice(4,8);
-      // const valueBytes = decodedBytes.slice(8*i,8*i+8);
+      // const valueBytes = decodedBytes.slice(4,8);
+      const valueBytes = decodedBytes.slice(4+8*i,8*i+8);
       console.log('数据域字节：', valueBytes.reverse());
       let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
       console.log('数据域字节10进制BCD：', v1);
