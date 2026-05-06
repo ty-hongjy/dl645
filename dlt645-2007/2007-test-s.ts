@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-05-06 10:45:32
+ * @LastEditTime: 2026-05-06 14:22:15
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -184,28 +184,61 @@ port.on('close', () => {
   console.log('串口已关闭，3秒后尝试重连...');
   // setTimeout(openPortAndSendCommand, 3000);
 }); 
-
-function run1() { 
-// 1. 读取单个费率（如谷段电量）
-// const meterAddress = '202411110002'; // 电表地址
-const valleyCmd = DL645_2007.buildReadMultiRateCmd(TEST_METER_ADDRESS, 'valley');
-console.log('读取谷段电量命令:', valleyCmd.toString('hex').toUpperCase());
-
-// 2. 批量读取所有分时电量
-const batchCmds = DL645_2007.buildBatchReadMultiRateCmds(TEST_METER_ADDRESS);
-batchCmds.forEach((cmd, index) => {
-  // const rateType = ['尖', '平', '谷', '峰', '总'][index];
-  const rateType = ['peak', 'flat', 'valley', 'superPeak', 'total'][index];
-  console.log(`读取${rateType}段电量命令:`, cmd.toString('hex').toUpperCase());
-});
-
-// 3. 解析分时电量应答帧（复用原有parseFrame方法）
-// 假设收到电表应答帧（十六进制Buffer）
-const responseFrame = Buffer.from('68200011114202689120000200003333333333333333333333337716', 'hex');
-// const responseFrame = Buffer.from('FEFEFEFE6820001111420268910C000200003333333333333333333333337716', 'hex');
-const parseResult = DL645_2007.parseFrame(responseFrame);
-console.log('分时电量解析结果:', JSON.stringify(parseResult, null, 2));
+function openPort() {
+  console.log('openPort...');
+  port.open((err) => {
+    if (err) {
+      console.error('串口打开失败:', err.message);
+      setTimeout(() => run(methodName), 3000);
+      return;
+    }
+    console.log('串口已打开，准备发送DL645-2007命令...');
+  });
 }
+function run1() {
+  const batchCmds = DL645_2007.buildBatchReadMultiRateCmds(TEST_METER_ADDRESS);
+  const rateType = ['尖峰', '峰', '平', '谷', '总'];
+
+  // 串口打开
+  port.open((err) => {
+    if (err) {
+      console.error('串口打开失败:', err.message);
+      return;
+    }
+
+    console.log('✅ 串口已打开，准备批量读取分时电量...');
+    sendCmdByIndex(0); // 从第0条命令开始发送
+
+    // 串行发送：发送第 index 条 → 等待3秒 → 下一条
+    function sendCmdByIndex(index: number) {
+      // 全部发完了
+      if (index >= batchCmds.length) {
+        console.log('✅ 所有分时电量命令发送完成');
+        return;
+      }
+
+      const cmd = batchCmds[index];
+      const name = rateType[index];
+
+      console.log(`\n📤 发送 ${name} 电量读取命令...`);
+
+      // 发送
+      port.write(cmd, (writeErr) => {
+        if (writeErr) {
+          console.error(`❌ ${name} 命令发送失败:`, writeErr.message);
+        } else {
+          console.log(`✅ ${name} 命令发送成功`);
+        }
+
+        // 等待 3 秒再发下一条（关键！）
+        setTimeout(() => {
+          sendCmdByIndex(index + 1);
+        }, 3000);
+      });
+    }
+  });
+}
+
 /**
  * 安全的动态命令执行函数
  * @param methodName DL645_2007 中的方法名（如 'open'、'close'、'cancelKeep'）
@@ -288,3 +321,4 @@ if(methodName === 'buildReadCmd'){
 }else{
   run(methodName);
 }
+

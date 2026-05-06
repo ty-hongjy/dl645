@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-06 10:38:51
+ * @LastEditTime: 2026-05-06 12:45:39
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -414,7 +414,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     for (let i = 0; i < k; i++) { 
       const valueBytes = decodedBytes.slice(4,8);
       // const valueBytes = decodedBytes.slice(8*i,8*i+8);
-      console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
+      console.log('数据域字节：', valueBytes.reverse());
       let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
       console.log('数据域字节10进制BCD：', v1);
       const rawValue = parseInt(v1);
