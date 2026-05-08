@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-08 14:56:11
+ * @LastEditTime: 2026-05-08 17:32:30
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -160,6 +160,7 @@ export class DL645_2007 {
   private static readonly FRAME_END = 0x16;
   // 485通信前置帧头（固定大写）
   public static readonly FRAME_HEADER = 'FEFEFEFE';
+  public static readonly FRAME_HEADER1 = [0x0FE,0xFE,0xFE,0xFE];
   // 数据域发送时的偏移值（每位加33/0x33）
   private static readonly DATA_OFFSET = 0x33;
   // 扩展控制相关常量
@@ -285,10 +286,11 @@ export class DL645_2007 {
       this.FRAME_END   // 帧结束符
     ];
 
-    const coreHex = this.bytesToHexString(frame);
-    const fullHex = this.FRAME_HEADER + coreHex;
-    const sendBuffer = Buffer.from(fullHex, 'hex');
-    console.log("buildReadCmd:"+fullHex);
+    // const coreHex = this.bytesToHexString(frame);
+    // const fullHex = this.FRAME_HEADER + coreHex;
+    // const sendBuffer1 = Buffer.from(fullHex, 'hex');
+    const sendBuffer = Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
+    console.log("buildReadCmd:"+sendBuffer.toString('hex'));
     // return frame;
     return sendBuffer;
   }
@@ -608,7 +610,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     console.log("Frame_HEADER:",Buffer.from(this.FRAME_HEADER, 'hex').toString('hex'));
 
     return Buffer.concat([
-      Buffer.from(this.FRAME_HEADER, 'hex'),  // 前置帧头 FE FE FE FE
+      Buffer.from(this.FRAME_HEADER1),  // 前置帧头 FE FE FE FE
       csDataBuf,     // 核心数据（68+地址+68+控制码+长度+数据）
       csBuf,         // 校验和
       Buffer.from([this.FRAME_END])   // 帧结束符 0x16
@@ -637,6 +639,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     //   this.encodeDataBytes(effTime),
     // ]);
 
+    console.log('数据域字节：',  this.encodeData(password).toString('hex'),',',this.encodeData(this.OPERATOR_CODE).toString('hex'),',',this.encodeData(cmdCode).toString('hex'),',',this.encodeData(effTime).toString('hex'));
     const dataBuf = Buffer.concat([
       this.encodeData(password),
       this.encodeData(this.OPERATOR_CODE),
@@ -827,9 +830,10 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     ];
 
     // 6. 拼接485前置帧头并返回Buffer
-    const coreHex = this.bytesToHexString(frame);
-    const fullHex = this.FRAME_HEADER + coreHex;
-    return Buffer.from(fullHex, 'hex');
+    // const coreHex = this.bytesToHexString(frame);
+    // const fullHex = this.FRAME_HEADER + coreHex;
+    return Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
+    // return Buffer.from(fullHex, 'hex');
   }
 
   /**

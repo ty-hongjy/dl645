@@ -233,7 +233,7 @@ function run1() {
         // 等待 3 秒再发下一条（关键！）
         setTimeout(() => {
           sendCmdByIndex(index + 1);
-        }, 3000);
+        }, 500);
       });
     }
   });

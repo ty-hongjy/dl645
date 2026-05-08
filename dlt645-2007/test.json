@@ -9,7 +9,7 @@
   },
   "meter": {
     "address": "202411110002",
-    "password": "02000000",
+    "password": "020000000",
     "protocol": "DLT645-2007"
   },
   "operator": {
