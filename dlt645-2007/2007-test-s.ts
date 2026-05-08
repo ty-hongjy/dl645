@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-05-06 14:54:07
+ * @LastEditTime: 2026-05-08 15:19:40
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -263,11 +263,11 @@ function run(methodName: string,params1:string ="") {
     }
     // const params = DL645_2007_DataId[params1];
     commandBytes = dl645[methodName](TEST_METER_ADDRESS,DL645_2007_ControlCode.READ_SINGLE ,targetDataId);
-    console.log("✅ 待发送命令字节：",commandBytes);
-    console.log(`✅ 待发送命令字节：${commandBytes.toString('hex').toUpperCase()}`);
   }else{
     commandBytes = dl645[methodName](TEST_METER_ADDRESS, TEST_PW);
   }
+    console.log("✅ 待发送命令字节：",commandBytes);
+    console.log(`✅ 待发送命令字节：${commandBytes.toString('hex').toUpperCase()}`);
 
   port.open((err) => {
     if (err) {

@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-06 16:32:35
+ * @LastEditTime: 2026-05-08 14:56:11
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -37,8 +37,10 @@ export enum DL645_2007_DataId {
   FORWARD_ACTIVE_VALLEY = '00010300',     // 正向有功谷段电量
   FORWARD_ACTIVE_SUPER_PEAK = '00010400', // 正向有功尖段电量（超尖峰）
   FORWARD_ACTIVE_ENERGY_DATA_BLOCK = '0001FF00', // 正向有功总能耗数据块
-
-  // 控制命令
+ 
+  TIME_CALIBRATION = '00000000', // 时间校准专用数据标识
+  
+   // 控制命令
   CONTROL_OPEN = '1A00',         // 合闸
   CONTROL_CLOSE = '1C00',        // 拉闸
   CONTROL_POWER_KEEP = '3A00',   // 保电
@@ -50,6 +52,7 @@ export enum DL645_2007_ControlCode {
   READ_SINGLE = 0x11,   // 读单个数据
   READ_BATCH = 0x12,    // 批量读数据
   // CONTROL = 0x13,    // 控制
+  BROADCAST_WRITE = 0x14, // 广播写数据（校时专用）
   CONTROL = 0x1C        // 控制命令
 }
 
@@ -236,7 +239,8 @@ export class DL645_2007 {
       // }
     }
     console.log("dataIdToRawBytes:",rawBytes,rawBytes.reverse().toString());
-    return rawBytes;
+    return rawBytes.map(byte => (byte + this.DATA_OFFSET) & 0xff)
+    // return rawBytes;
     // return rawBytes.reverse();
   }
 
@@ -251,13 +255,15 @@ export class DL645_2007 {
     // 1. 地址处理（仅反转）
     const reversedAddress = this.reverseAddress(meterAddress);
     // 2. 数据标识转原始字节数组（已反转）
-    const rawDataBytes = this.dataIdToRawBytes(dataId);
+    // const rawDataBytes = this.dataIdToRawBytes(dataId);
     // 3. 数据域每位加33（核心规则）
-    const sendDataBytes = rawDataBytes.map(byte => (byte + this.DATA_OFFSET) & 0xff);
+    // const sendDataBytes = rawDataBytes.map(byte => (byte + this.DATA_OFFSET) & 0xff);
+    const sendDataBytes =  this.dataIdToRawBytes(dataId);
+
     console.log("sendDataBytes:",sendDataBytes);
-    for (let i = 0; i < rawDataBytes.length; i++) {
-      console.log("sendDataBytes:",sendDataBytes[i]+this.DATA_OFFSET & 0xff,"sendDataBytes[i]+this.DATA_OFFSET & 0xff");
-    }
+    // for (let i = 0; i < rawDataBytes.length; i++) {
+    //   console.log("sendDataBytes:",sendDataBytes[i]+this.DATA_OFFSET & 0xff,"sendDataBytes[i]+this.DATA_OFFSET & 0xff");
+    // }
 
     // 4. 构建校验范围字节数组（从第一个帧起始符到数据域结束）
     const checkSource = [
@@ -598,9 +604,11 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
 
     const checksum = this.calculateSumCheck(Array.from(csDataBuf));
     const csBuf = Buffer.from([checksum]);
+    console.log("Frame_HEADER:",this.FRAME_HEADER);
+    console.log("Frame_HEADER:",Buffer.from(this.FRAME_HEADER, 'hex').toString('hex'));
 
     return Buffer.concat([
-      Buffer.from(this.FRAME_HEADER),  // 前置帧头 FE FE FE FE
+      Buffer.from(this.FRAME_HEADER, 'hex'),  // 前置帧头 FE FE FE FE
       csDataBuf,     // 核心数据（68+地址+68+控制码+长度+数据）
       csBuf,         // 校验和
       Buffer.from([this.FRAME_END])   // 帧结束符 0x16
@@ -618,7 +626,8 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
   static buildControlCmd( address: string, password: string, cmdCode: string, effectiveTime?: string  ): Buffer {
     // const controlCode = '1C';
     // 处理生效时间，默认次日生效
-    const effTime = effectiveTime || dayjs().add(1, 'day').format('ssmmHHDDMMYY');
+    const effTime = dayjs().add(1, 'day').format('ssmmHHDDMMYY');
+    // const effTime = effectiveTime || dayjs().add(1, 'day').format('ssmmHHDDMMYY');
 
     // 构建数据Buffer
     // const dataBuf = Buffer.concat([
@@ -760,4 +769,90 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
       message
     };
   }
+
+  /**
+   * 时间转BCD码字节数组（YY MM DD HH mm ss）
+   * @param time 待校准的时间（Dayjs对象，默认当前时间）
+   * @returns 6字节BCD码数组
+   */
+  private static timeToBCDBytes(time: Dayjs = dayjs()): number[] {
+    // 提取时间字段（年份取后两位）
+    const yy = time.year() % 100;
+    const mm = time.month() + 1; // dayjs月份从0开始
+    const dd = time.date();
+    const hh = time.hour();
+    const mi = time.minute();
+    const ss = time.second();
+
+    // 转BCD码（如 26 → 0x26，12 → 0x12）
+    const toBCD = (num: number) => {
+      if (num < 0 || num > 99) throw new Error(`时间字段超出范围：${num}`);
+      return Math.floor(num / 10) * 16 + (num % 10);
+    };
+
+    return [toBCD(yy), toBCD(mm), toBCD(dd), toBCD(hh), toBCD(mi), toBCD(ss)];
+  }
+
+  /**
+   * 构建广播校准时间命令
+   * @param targetTime 校准目标时间（可选，默认当前系统时间）
+   * @returns 完整的广播校时报文字节Buffer（含485帧头）
+   */
+  static buildBroadcastTimeCalibrationCmd(address: string, targetTime?: Dayjs): Buffer {
+    // 1. 固定广播地址处理
+    const reversedAddress = this.reverseAddress(address);
+
+    // 2. 时间转BCD码并加0x33偏移
+    const timeBCD = this.timeToBCDBytes(targetTime);
+    const encodedTime = this.encodeDataBytes(timeBCD);
+
+    // 3. 构建校验范围字节数组
+    const checkSource = [
+      this.FRAME_START,          // 第一个帧起始符
+      ...reversedAddress,        // 反转后的广播地址
+      this.FRAME_START,          // 第二个帧起始符
+      DL645_2007_ControlCode.BROADCAST_WRITE, // 广播写控制码
+      encodedTime.length,        // 数据域长度（固定6字节）
+      ...encodedTime             // 加偏移后的时间数据
+    ];
+
+    // 4. 计算模256求和校验值
+    const checksum = this.calculateSumCheck(checkSource);
+
+    // 5. 构建完整报文
+    const frame = [
+      ...checkSource,
+      checksum,        // 校验码
+      this.FRAME_END   // 帧结束符
+    ];
+
+    // 6. 拼接485前置帧头并返回Buffer
+    const coreHex = this.bytesToHexString(frame);
+    const fullHex = this.FRAME_HEADER + coreHex;
+    return Buffer.from(fullHex, 'hex');
+  }
+
+  /**
+   * 快捷方法：广播校准为当前系统时间
+   * @returns 广播校时命令Buffer
+   */
+  static broadcastCalibrateCurrentTime(meterAddress: string, targetTime?: Dayjs): Buffer {
+    return this.buildBroadcastTimeCalibrationCmd(meterAddress,targetTime);
+  }
+
+  /**
+   * 验证时间BCD码合法性（可选，用于校验输入时间）
+   * @param time 待验证时间
+   * @returns 是否合法
+   */
+  static validateCalibrationTime(time: Dayjs): boolean {
+    try {
+      this.timeToBCDBytes(time);
+      // 额外验证时间合理性（如月份1-12，日期1-31等）
+      return time.isValid();
+    } catch (e) {
+      return false;
+    }
+  }
+
 }
