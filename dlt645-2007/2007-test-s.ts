@@ -3,13 +3,16 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-05-08 15:19:40
+ * @LastEditTime: 2026-05-09 10:59:00
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
 // import path from 'path';
 import * as fs from 'fs'; // 修复：命名空间导入
 import * as path from 'path'; // 修复：命名空间导入
+// import * as dayjs from 'dayjs';
+import dayjs from 'dayjs'; // 修复：dayjs改为默认导入
+
 import { DL645_2007, DL645_2007_DataId, DL645_2007_ControlCode } from './dlt645-2007';
 
 interface SerialPortConfig {
@@ -233,7 +236,7 @@ function run1() {
         // 等待 3 秒再发下一条（关键！）
         setTimeout(() => {
           sendCmdByIndex(index + 1);
-        }, 500);
+        }, 1000);
       });
     }
   });
@@ -263,11 +266,13 @@ function run(methodName: string,params1:string ="") {
     }
     // const params = DL645_2007_DataId[params1];
     commandBytes = dl645[methodName](TEST_METER_ADDRESS,DL645_2007_ControlCode.READ_SINGLE ,targetDataId);
+    // console.log("✅ 待发送命令字节：",commandBytes);
+    // console.log(`✅ 待发送命令字节：${commandBytes.toString('hex').toUpperCase()}`);
   }else{
     commandBytes = dl645[methodName](TEST_METER_ADDRESS, TEST_PW);
   }
-    console.log("✅ 待发送命令字节：",commandBytes);
-    console.log(`✅ 待发送命令字节：${commandBytes.toString('hex').toUpperCase()}`);
+  console.log("✅ 待发送命令字节：",commandBytes);
+  console.log(`✅ 待发送命令字节：${commandBytes.toString('hex').toUpperCase()}`);
 
   port.open((err) => {
     if (err) {
@@ -293,6 +298,38 @@ function run(methodName: string,params1:string ="") {
   });
 }
 
+function caliparseMeter() {
+  const targetTime = dayjs('2026-05-06 15:30:00');
+  const currentTimeCmd = DL645_2007.broadcastCalibrateCurrentTime(TEST_METER_ADDRESS,targetTime);
+  console.log('广播校时命令（当前时间）：', currentTimeCmd.toString('hex').toUpperCase());
+
+  // 2. 校准为指定时间（如2026-05-06 15:30:00）
+ 
+  port.open((err) => {
+    if (err) {
+      console.error('串口打开失败:', err.message);
+      setTimeout(() => run(methodName), 3000);
+      return;
+    }
+
+    console.log(`串口已打开，准备执行 DL645_2007.${methodName} 命令...`);
+
+    if (DL645_2007.validateCalibrationTime(targetTime)) {
+      const customTimeCmd = DL645_2007.buildBroadcastTimeCalibrationCmd(TEST_METER_ADDRESS, targetTime);
+      console.log('广播校时命令（指定时间）：', customTimeCmd.toString('hex').toUpperCase());
+      port.write(customTimeCmd, (writeErr) => {
+        if (writeErr) {
+          console.error('命令发送失败:', writeErr.message);
+        } else {
+          console.log(`✅ 发送命令 ${methodName}（含485帧头）成功`);
+        }
+      });
+    } else {
+      console.error('指定时间不合法');
+    }
+  });
+}
+
 // ===================== 命令行参数处理 =====================
 // 从process.argv获取命令行参数（argv[0]=node路径，argv[1]=脚本路径，argv[2]=传入的方法名）
 const [, , methodName,params1,params2] = process.argv;
@@ -305,6 +342,7 @@ if (!methodName) {
   console.error('   node 2007-test-s.js cancelKeep');
   console.error('   node 2007-test-s.js keep');
   console.error('   node 2007-test-s.js buildReadCmd');
+  console.error('   node 2007-test-s.js caliparseMeter');
   process.exit(1); // 退出进程，标记参数错误
 }
 
@@ -320,6 +358,8 @@ if(methodName === 'buildReadCmd'){
   run(methodName,params1);
 }else if(methodName === 'buildReadMultiCmd'){
   run1();
+}else if(methodName === 'caliparseMeter'){
+    caliparseMeter();
 }else{
   run(methodName);
 }

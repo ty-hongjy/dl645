@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-09 10:03:12
+ * @LastEditTime: 2026-05-09 11:40:06
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -816,37 +816,58 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
    * @returns 完整的广播校时报文字节Buffer（含485帧头）
    */
   static buildBroadcastTimeCalibrationCmd(address: string, targetTime?: Dayjs): Buffer {
+  // static buildBroadcastTimeCalibrationCmd(address: string, targetTime?: Dayjs): Buffer {
     // 1. 固定广播地址处理
     const reversedAddress = this.reverseAddress(address);
 
     // 2. 时间转BCD码并加0x33偏移
     const timeBCD = this.timeToBCDBytes(targetTime);
     const encodedTime = this.encodeDataBytes(timeBCD);
+    console.debug(`timeBCD:${timeBCD}`);
+    console.debug(`timeBCD:${Buffer.from(timeBCD).toString('hex')}`);
+    // const effTime = dayjs().format('ssmmHHDDMMYY');
+    // // const encodedEffTime = this.encodeData(effTime)
+    // // const effTimeHex = effTime.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    // console.debug(`effTime:${Buffer.from(effTime, 'ascii').toString('hex')}`);
+    // // const effTimeHex = Buffer.from(effTime, 'ascii').toString('hex');
+    // const effTimeHex = Array.from(Buffer.from(effTime, 'hex'));
+    // console.log(`测试${effTimeHex}`);
 
-    // 3. 构建校验范围字节数组
-    const checkSource = [
-      this.FRAME_START,          // 第一个帧起始符
-      ...reversedAddress,        // 反转后的广播地址
-      this.FRAME_START,          // 第二个帧起始符
-      DL645_2007_ControlCode.BROADCAST_WRITE, // 广播写控制码
-      encodedTime.length,        // 数据域长度（固定6字节）
-      ...encodedTime             // 加偏移后的时间数据
-    ];
+        const dataBuf = Buffer.concat([
+      // this.encodeData(password),
+      this.encodeData(this.OPERATOR_CODE),
+      this.encodeData(DL645_2007_DataId.TIME_CALIBRATION), // 广播写控制码
+      this.encodeData(timeBCD.toString())
+    ]);
+    console.debug(`dataBuf:${Buffer.from(dataBuf).toString('hex')}`);
+    return this.dataToHex(address, DL645_2007_ControlCode.BROADCAST_WRITE, dataBuf);
 
-    // 4. 计算模256求和校验值
-    const checksum = this.calculateSumCheck(checkSource);
+    // // 3. 构建校验范围字节数组
+    // const checkSource = [
+    //   this.FRAME_START,          // 第一个帧起始符
+    //   ...reversedAddress,        // 反转后的广播地址
+    //   this.FRAME_START,          // 第二个帧起始符
+    //   DL645_2007_ControlCode.BROADCAST_WRITE, // 广播写控制码
+    //   // encodedTime.length,        // 数据域长度（固定6字节）
+    //   // ...encodedTime             // 加偏移后的时间数据
+    //   encodedTime.length,        // 数据域长度（固定6字节）
+    //   ...encodedTime             // 加偏移后的时间数据
+    // ];
 
-    // 5. 构建完整报文
-    const frame = [
-      ...checkSource,
-      checksum,        // 校验码
-      this.FRAME_END   // 帧结束符
-    ];
+    // // 4. 计算模256求和校验值
+    // const checksum = this.calculateSumCheck(checkSource);
+
+    // // 5. 构建完整报文
+    // const frame = [
+    //   ...checkSource,
+    //   checksum,        // 校验码
+    //   this.FRAME_END   // 帧结束符
+    // ];
 
     // 6. 拼接485前置帧头并返回Buffer
     // const coreHex = this.bytesToHexString(frame);
     // const fullHex = this.FRAME_HEADER + coreHex;
-    return Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
+    // return Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
     // return Buffer.from(fullHex, 'hex');
   }
 
