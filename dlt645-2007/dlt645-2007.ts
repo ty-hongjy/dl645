@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-08 17:32:30
+ * @LastEditTime: 2026-05-09 10:03:12
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -37,9 +37,9 @@ export enum DL645_2007_DataId {
   FORWARD_ACTIVE_VALLEY = '00010300',     // 正向有功谷段电量
   FORWARD_ACTIVE_SUPER_PEAK = '00010400', // 正向有功尖段电量（超尖峰）
   FORWARD_ACTIVE_ENERGY_DATA_BLOCK = '0001FF00', // 正向有功总能耗数据块
- 
+
   TIME_CALIBRATION = '00000000', // 时间校准专用数据标识
-  
+
    // 控制命令
   CONTROL_OPEN = '1A00',         // 合闸
   CONTROL_CLOSE = '1C00',        // 拉闸
@@ -55,6 +55,20 @@ export enum DL645_2007_ControlCode {
   BROADCAST_WRITE = 0x14, // 广播写数据（校时专用）
   CONTROL = 0x1C        // 控制命令
 }
+
+// 命令类型映射（泛型用）
+export type DL645_CommandType =
+  | 'read'       // 读数据
+  | 'control'    // 控制命令（合闸/拉闸等）
+  | 'timeCalib'; // 时间校准
+
+// 控制命令类型映射（泛型约束）
+export type ControlCmdType = keyof typeof DL645_2007_DataId & (
+  | 'CONTROL_OPEN'
+  | 'CONTROL_CLOSE'
+  | 'CONTROL_POWER_KEEP' 
+  | 'CONTROL_CANCEL_POWER_KEEP'
+);
 
 // 类型定义
 export interface ParameterResult {
