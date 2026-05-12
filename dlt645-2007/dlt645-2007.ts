@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-09 11:40:06
+ * @LastEditTime: 2026-05-12 10:14:27
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -52,7 +52,8 @@ export enum DL645_2007_ControlCode {
   READ_SINGLE = 0x11,   // 读单个数据
   READ_BATCH = 0x12,    // 批量读数据
   // CONTROL = 0x13,    // 控制
-  BROADCAST_WRITE = 0x14, // 广播写数据（校时专用）
+  BROADCAST_WRITE = 0x08, // 广播写数据（校时专用）
+  TIME_WRITE = 0x14, // 广播写数据（校时专用）
   CONTROL = 0x1C        // 控制命令
 }
 
@@ -144,6 +145,7 @@ export class DL645_2007 {
     // '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
 
     // 分时电量配置
+    '0000FF00': { name: '组合有功总能耗数据块', unit: 'kWh', scale: 0.01 },
     '00010000': { name: '正向有功总电量', unit: 'kWh', scale: 0.01 },
     '00010100': { name: '正向有功峰段电量', unit: 'kWh', scale: 0.01 },
     '00010200': { name: '正向有功平段电量', unit: 'kWh', scale: 0.01 },
@@ -447,7 +449,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     console.log('k:', k,"dataId:",dataId);
     let result: ParameterResult= {dataId,name: dataIdConfig.name, rawValue: 0, value: 0, unit: dataIdConfig.unit};
 
-    for (let i = 0; i < k; i++) { 
+    for (let i = 0; i < k; i++) {
       // const valueBytes = decodedBytes.slice(4,8);
       const valueBytes = decodedBytes.slice(4+8*i,8*i+8);
       console.log('数据域字节：', valueBytes.reverse());
@@ -455,6 +457,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
       console.log('数据域字节10进制BCD：', v1);
       const rawValue = parseInt(v1);
       const value = rawValue * dataIdConfig.scale;
+      console.log('数据域值：',rawValue,value);
       result = {
         dataId,
         name: dataIdConfig.name,
@@ -815,16 +818,19 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
    * @param targetTime 校准目标时间（可选，默认当前系统时间）
    * @returns 完整的广播校时报文字节Buffer（含485帧头）
    */
-  static buildBroadcastTimeCalibrationCmd(address: string, targetTime?: Dayjs): Buffer {
+  static buildBroadcastTimeCalibrationCmd(targetTime?: Dayjs): Buffer {
   // static buildBroadcastTimeCalibrationCmd(address: string, targetTime?: Dayjs): Buffer {
     // 1. 固定广播地址处理
-    const reversedAddress = this.reverseAddress(address);
+    const address = "999999999999";
+    // const reversedAddress = this.reverseAddress(address);
 
     // 2. 时间转BCD码并加0x33偏移
-    const timeBCD = this.timeToBCDBytes(targetTime);
-    const encodedTime = this.encodeDataBytes(timeBCD);
+    const timeBCD = dayjs(targetTime).format('ssmmHHDDMMYY').toString();
+
+    // const timeBCD = this.timeToBCDBytes(targetTime);
+    // const encodedTime = this.encodeDataBytes(timeBCD);
     console.debug(`timeBCD:${timeBCD}`);
-    console.debug(`timeBCD:${Buffer.from(timeBCD).toString('hex')}`);
+    // console.debug(`timeBCD:${Buffer.from(timeBCD).toString('hex')}`);
     // const effTime = dayjs().format('ssmmHHDDMMYY');
     // // const encodedEffTime = this.encodeData(effTime)
     // // const effTimeHex = effTime.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
@@ -833,11 +839,13 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     // const effTimeHex = Array.from(Buffer.from(effTime, 'hex'));
     // console.log(`测试${effTimeHex}`);
 
-        const dataBuf = Buffer.concat([
+      // 3. 数据域构建
+      const dataBuf = Buffer.concat([
       // this.encodeData(password),
-      this.encodeData(this.OPERATOR_CODE),
-      this.encodeData(DL645_2007_DataId.TIME_CALIBRATION), // 广播写控制码
-      this.encodeData(timeBCD.toString())
+      // this.encodeData(this.OPERATOR_CODE),
+      // this.encodeData(DL645_2007_DataId.TIME_CALIBRATION), // 广播写控制码
+        // this.encodeData(timeBCD.toString())
+        this.encodeData(timeBCD)
     ]);
     console.debug(`dataBuf:${Buffer.from(dataBuf).toString('hex')}`);
     return this.dataToHex(address, DL645_2007_ControlCode.BROADCAST_WRITE, dataBuf);
@@ -872,11 +880,76 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
   }
 
   /**
+   * 构建广播校准时间命令
+   * @param targetTime 校准目标时间（可选，默认当前系统时间）
+   * @returns 完整的广播校时报文字节Buffer（含485帧头）
+   */
+  static buildTimeCalibrationCmd(address: string, targetTime?: Dayjs): Buffer {
+  // static buildBroadcastTimeCalibrationCmd(address: string, targetTime?: Dayjs): Buffer {
+    // 1. 固定广播地址处理
+    // const reversedAddress = this.reverseAddress(address);
+
+    // 2. 时间转BCD码并加0x33偏移
+    // const timeBCD = this.timeToBCDBytes(targetTime);
+    const timeBCD = dayjs(targetTime).format('ssmmHHDDMMYY').toString();
+    // const encodedTime = this.encodeDataBytes(timeBCD);
+    console.debug(`timeBCD:${timeBCD}`);
+    console.debug(`timeBCD:${Buffer.from(timeBCD).toString('hex')}`);
+    // const effTime = dayjs().format('ssmmHHDDMMYY');
+    // // const encodedEffTime = this.encodeData(effTime)
+    // // const effTimeHex = effTime.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    // console.debug(`effTime:${Buffer.from(effTime, 'ascii').toString('hex')}`);
+    // // const effTimeHex = Buffer.from(effTime, 'ascii').toString('hex');
+    // const effTimeHex = Array.from(Buffer.from(effTime, 'hex'));
+    // console.log(`测试${effTimeHex}`);
+
+    const dataBuf = Buffer.concat([
+      Buffer.from([0x10]), //固定长度
+      this.encodeData(DL645_2007_DataId.TIME_CALIBRATION), // 广播写控制码
+      this.encodeData(timeBCD)
+    ]);
+    console.debug(`dataBuf:${Buffer.from(dataBuf).toString('hex')}`);
+    return this.dataToHex(address, DL645_2007_ControlCode.BROADCAST_WRITE, dataBuf);
+
+  // const databuf=Buffer.from([]);
+  // return this.dataToHex(address, DL645_2007_ControlCode.BROADCAST_WRITE, databuf);
+
+    // // 3. 构建校验范围字节数组
+    // const checkSource = [
+    //   this.FRAME_START,          // 第一个帧起始符
+    //   ...reversedAddress,        // 反转后的广播地址
+    //   this.FRAME_START,          // 第二个帧起始符
+    //   DL645_2007_ControlCode.BROADCAST_WRITE, // 广播写控制码
+    //   // encodedTime.length,        // 数据域长度（固定6字节）
+    //   // ...encodedTime             // 加偏移后的时间数据
+    //   encodedTime.length,        // 数据域长度（固定6字节）
+    //   ...encodedTime             // 加偏移后的时间数据
+    // ];
+
+    // // 4. 计算模256求和校验值
+    // const checksum = this.calculateSumCheck(checkSource);
+
+    // // 5. 构建完整报文
+    // const frame = [
+    //   ...checkSource,
+    //   checksum,        // 校验码
+    //   this.FRAME_END   // 帧结束符
+    // ];
+
+    // 6. 拼接485前置帧头并返回Buffer
+    // const coreHex = this.bytesToHexString(frame);
+    // const fullHex = this.FRAME_HEADER + coreHex;
+    // return Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
+    // return Buffer.from(fullHex, 'hex');
+  }
+
+  
+  /**
    * 快捷方法：广播校准为当前系统时间
    * @returns 广播校时命令Buffer
    */
   static broadcastCalibrateCurrentTime(meterAddress: string, targetTime?: Dayjs): Buffer {
-    return this.buildBroadcastTimeCalibrationCmd(meterAddress,targetTime);
+    return this.buildBroadcastTimeCalibrationCmd(targetTime);
   }
 
   /**
