@@ -3,7 +3,7 @@
  * @Autor: name
  * @Date: 2026-01-06 11:00:09
  * @LastEditors: name
- * @LastEditTime: 2026-05-11 17:22:35
+ * @LastEditTime: 2026-05-13 11:38:37
  */
 import { SerialPort } from 'serialport';
 // import fs from 'fs';
@@ -380,7 +380,7 @@ if (!methodName) {
   process.exit(1); // 退出进程，标记参数错误
 }
 
-if(methodName === 'buildReadCmd'){
+if(methodName === 'buildReadCmd' || methodName === 'buildReadCmd1'){
   if  (!params1) {
     console.error('❌ 请传入参数1！示例：');
     console.error('   COMBINED_TOTAL_ACTIVE_ENERGY_CONSUMPTION');

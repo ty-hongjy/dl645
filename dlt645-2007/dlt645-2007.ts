@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-12 10:14:27
+ * @LastEditTime: 2026-05-13 12:37:12
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -25,18 +25,27 @@ export enum DL645_2007_DataId {
   PHASE_B_ACTIVE_POWER = '02030200', // B相有功功率
   PHASE_C_ACTIVE_POWER = '02030300', // C相有功功率
 
+  METER_DATE = '04000101', // 日期（年月日）
+  METER_TIME = '04000102', // 时间（时分秒）
+  PERIOD = '04010001', // 分时段（尖峰平谷）
+  HOLIDAY_PERIOD = '04010002', // 节假日时段（假日）
+  PEAK_PERIOD = '04010003', // 尖峰平谷时段（尖峰）
+  FLAT_PERIOD = '04010004', // 平段时段（平段）
+  VALLEY_PERIOD = '04010005', // 谷段时段（谷段）
+  SUPER_PEAK_PERIOD = '04010006', // 超尖峰时段（超尖峰）
+
   // TOTAL_ACTIVE_POWER = '02040000',   // 总有功功率
-  COMBINED_ACTIVE_TOTAL_ENERGY = '00000000', // 组合有功总电能
+  COMBINED_ACTIVE_TOTAL_ENERGY = '00000000',      // 组合有功总电能
   COMBINED_ACTIVE_ENERGY_DATA_BLOCK = '0000FF00', // 组合有功总能耗数据块
 
   //正向有功多费率数据块（分时电量核心标识）
   // FORWARD_ACTIVE_MULTI_RATE = '00020000', // 正向有功多费率数据块（总+尖峰平谷）
-  FORWARD_ACTIVE_TOTAL_ENERGY = '00010000',  // 正向有功总电能
-  FORWARD_ACTIVE_PEAK = '00010100',       // 正向有功峰段电量
-  FORWARD_ACTIVE_FLAT = '00010200',       // 正向有功平段电量
-  FORWARD_ACTIVE_VALLEY = '00010300',     // 正向有功谷段电量
-  FORWARD_ACTIVE_SUPER_PEAK = '00010400', // 正向有功尖段电量（超尖峰）
-  FORWARD_ACTIVE_ENERGY_DATA_BLOCK = '0001FF00', // 正向有功总能耗数据块
+  FORWARD_ACTIVE_TOTAL_ENERGY = '00010000',       // 正向有功总电能
+  FORWARD_ACTIVE_PEAK = '00010100',               // 正向有功峰段电量
+  FORWARD_ACTIVE_FLAT = '00010200',               // 正向有功平段电量
+  FORWARD_ACTIVE_VALLEY = '00010300',             // 正向有功谷段电量
+  FORWARD_ACTIVE_SUPER_PEAK = '00010400',         // 正向有功尖段电量（超尖峰）
+  FORWARD_ACTIVE_ENERGY_DATA_BLOCK = '0001FF00',  // 正向有功总能耗数据块
 
   TIME_CALIBRATION = '00000000', // 时间校准专用数据标识
 
@@ -49,17 +58,18 @@ export enum DL645_2007_DataId {
 
 // 控制码枚举
 export enum DL645_2007_ControlCode {
-  READ_SINGLE = 0x11,   // 读单个数据
-  READ_BATCH = 0x12,    // 批量读数据
-  // CONTROL = 0x13,    // 控制
+  READ_SINGLE = 0x11,     // 读单个数据
+  READ_BATCH = 0x12,      // 批量读数据
+  // CONTROL = 0x13,      // 控制
   BROADCAST_WRITE = 0x08, // 广播写数据（校时专用）
-  TIME_WRITE = 0x14, // 广播写数据（校时专用）
-  CONTROL = 0x1C        // 控制命令
+  WRITE = 0x14,      // 单表写数据（校时专用）
+  CONTROL = 0x1C          // 控制命令
 }
 
 // 命令类型映射（泛型用）
 export type DL645_CommandType =
   | 'read'       // 读数据
+  | 'write'      // 写数据
   | 'control'    // 控制命令（合闸/拉闸等）
   | 'timeCalib'; // 时间校准
 
@@ -67,7 +77,7 @@ export type DL645_CommandType =
 export type ControlCmdType = keyof typeof DL645_2007_DataId & (
   | 'CONTROL_OPEN'
   | 'CONTROL_CLOSE'
-  | 'CONTROL_POWER_KEEP' 
+  | 'CONTROL_POWER_KEEP'
   | 'CONTROL_CANCEL_POWER_KEEP'
 );
 
@@ -129,6 +139,7 @@ export interface ControlParseResult extends ParseResult {
 export class DL645_2007 {
   static readonly DATA_ID_MAP = {
     '00000000': { name: '组合总有功电能', unit: 'kWh', scale: 0.01 },
+    '0000FF00': { name: '组合有功总能耗数据块', unit: 'kWh', scale: 0.01 },
 
     '02010100': { name: 'A相电压', unit: 'V', scale: 0.1 },
     '02010200': { name: 'B相电压', unit: 'V', scale: 0.1 },
@@ -144,8 +155,6 @@ export class DL645_2007 {
     // '00010000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
     // '02040000': { name: '总有功功率', unit: 'kW', scale: 0.01 },
 
-    // 分时电量配置
-    '0000FF00': { name: '组合有功总能耗数据块', unit: 'kWh', scale: 0.01 },
     '00010000': { name: '正向有功总电量', unit: 'kWh', scale: 0.01 },
     '00010100': { name: '正向有功峰段电量', unit: 'kWh', scale: 0.01 },
     '00010200': { name: '正向有功平段电量', unit: 'kWh', scale: 0.01 },
@@ -191,7 +200,7 @@ export class DL645_2007 {
     if (address.length !== 12) {
       throw new Error('电表地址必须是12位十六进制字符串');
     }
-
+    // return this.encodeData(address, true);
     const addressBytes: number[] = [];
     for (let i = 0; i < 12; i += 2) {
       const byte = parseInt(address.substr(i, 2), 16);
@@ -268,7 +277,7 @@ export class DL645_2007 {
    * @param dataId 数据标识
    * @returns 完整的报文字节数组
    */
-  static buildReadCmd( meterAddress: string, controlCode: DL645_2007_ControlCode, dataId: DL645_2007_DataId): Buffer {
+  static buildReadCmd1( meterAddress: string, controlCode: DL645_2007_ControlCode, dataId: DL645_2007_DataId): Buffer {
     // 1. 地址处理（仅反转）
     const reversedAddress = this.reverseAddress(meterAddress);
     // 2. 数据标识转原始字节数组（已反转）
@@ -292,6 +301,7 @@ export class DL645_2007 {
       ...sendDataBytes           // 加偏移后的数据域
     ];
 
+
     // 5. 计算模256求和校验值（替代原硬编码/CRC8）
     const checksum = this.calculateSumCheck(checkSource);
 
@@ -308,6 +318,14 @@ export class DL645_2007 {
     const sendBuffer = Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
     console.log("buildReadCmd:"+sendBuffer.toString('hex'));
     // return frame;
+    return sendBuffer;
+  }
+
+  static buildReadCmd( meterAddress: string, controlCode: DL645_2007_ControlCode, dataId: DL645_2007_DataId): Buffer {
+    // console.log("buildReadCmd1:",meterAddress,controlCode,dataId);
+    const sendDataBytes =  this.dataIdToRawBytes(dataId);
+    console.log("dataIdToRawBytes:",sendDataBytes);
+    const sendBuffer = this.dataToHex1(meterAddress, controlCode, sendDataBytes);
     return sendBuffer;
   }
 
@@ -623,12 +641,42 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
 
     const checksum = this.calculateSumCheck(Array.from(csDataBuf));
     const csBuf = Buffer.from([checksum]);
-    console.log("Frame_HEADER:",this.FRAME_HEADER);
+    // console.log("Frame_HEADER:",this.FRAME_HEADER);
     console.log("Frame_HEADER:",Buffer.from(this.FRAME_HEADER, 'hex').toString('hex'));
 
     return Buffer.concat([
       Buffer.from(this.FRAME_HEADER1),  // 前置帧头 FE FE FE FE
       csDataBuf,     // 核心数据（68+地址+68+控制码+长度+数据）
+      csBuf,         // 校验和
+      Buffer.from([this.FRAME_END])   // 帧结束符 0x16
+    ]);
+  }
+
+  private static dataToHex1(meterAddress: string, controlCode: number, dataBuf: number[]): Buffer {
+
+    // let csBuf = Buffer.from([0x00]);
+    const lBuf = dataBuf.length;
+    const controlCodeBuf = [controlCode];
+    const frameStartBuf = [this.FRAME_START];
+    const reversedAddressBuf = this.reverseAddress(meterAddress);
+
+    const csDataBuf = [
+      frameStartBuf,                // 帧起始符 0x68
+      reversedAddressBuf,           // 反转后的地址
+      frameStartBuf,                // 第二个帧起始符 0x68
+      controlCodeBuf,               // 控制码
+      lBuf,                         // 数据长度
+      dataBuf                       // 数据域
+    ].flat();
+
+    const checksum = this.calculateSumCheck(csDataBuf);
+    const csBuf = Buffer.from([checksum]);
+    console.log("Frame_HEADER:",this.FRAME_HEADER);
+    console.log("Frame_HEADER:",Buffer.from(this.FRAME_HEADER, 'hex').toString('hex'));
+
+    return Buffer.concat([
+      Buffer.from(this.FRAME_HEADER1),  // 前置帧头 FE FE FE FE
+      Buffer.from(csDataBuf),     // 核心数据（68+地址+68+控制码+长度+数据）
       csBuf,         // 校验和
       Buffer.from([this.FRAME_END])   // 帧结束符 0x16
     ]);
@@ -943,7 +991,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     // return Buffer.from(fullHex, 'hex');
   }
 
-  
+
   /**
    * 快捷方法：广播校准为当前系统时间
    * @returns 广播校时命令Buffer
@@ -965,6 +1013,75 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     } catch (e) {
       return false;
     }
+  }
+
+ static readDateCmd(address: string): Buffer {
+  // const cmdFlag = '04000101', controlCode = '11';
+  let dataBuf = Buffer.concat([this.encodeData(DL645_2007_DataId.METER_DATE, true)]);
+  let cmd = this.dataToHex(address, DL645_2007_ControlCode.READ_SINGLE, dataBuf);
+  return cmd;
+  }
+
+  static readTimeCmd(address: string): Buffer {
+    // const cmdFlag = '04000102', controlCode = '11';
+    let dataBuf = Buffer.concat([this.encodeData(DL645_2007_DataId.METER_TIME, true)]);
+    let cmd = this.dataToHex(address, DL645_2007_ControlCode.READ_SINGLE, dataBuf);
+    return cmd;
+  }
+
+  static writeDateCmd(address: string, password: string, date: string): Buffer {
+    // const cmdFlag = '04000101', controlCode = '14';
+    let dataBuf = Buffer.concat(
+      [
+        this.encodeData(DL645_2007_DataId.METER_DATE, true),
+        this.encodeData(password),
+        this.encodeData(this.OPERATOR_CODE),
+        this.encodeData(date, true),
+      ]
+    );
+    let cmd = this.dataToHex(address, DL645_2007_ControlCode.WRITE, dataBuf);
+    return cmd;
+  }
+
+  static writeTimeCmd(address: string, password: string, time: string): Buffer {
+    // const cmdFlag = '04000102', controlCode = '14';
+    let dataBuf = Buffer.concat(
+      [
+        this.encodeData(DL645_2007_DataId.METER_TIME, true),
+        this.encodeData(password),
+        this.encodeData(this.OPERATOR_CODE),
+        this.encodeData(time, true),
+      ]
+    );
+    let cmd = this.dataToHex(address, DL645_2007_ControlCode.WRITE, dataBuf);
+    return cmd;
+  }
+
+  static readPeriodCmd(address: string): Buffer {
+    // const cmdFlag = '04010001', controlCode = '11';
+    let dataBuf = Buffer.concat([this.encodeData(DL645_2007_DataId.PERIOD, true)]);
+    let cmd = this.dataToHex(address, DL645_2007_ControlCode.READ_SINGLE, dataBuf);
+    return cmd;
+  }
+
+  static writePeriodCmd(address: string, password: string, no: number, period: any[]): Buffer {
+    const cmdFlag = `040100${no.toString().padStart(2, '0')}`;
+    // , controlCode = '14';
+    // 将 JSON 数据处理成 Buffer 数组
+    const periodBuffers = period.map(item => {
+      const combined = `${item.time}${item.price_no.toString().padStart(2, '0')}`;
+      return this.encodeData(combined, true);
+    });
+    let dataBuf = Buffer.concat(
+      [
+        this.encodeData(cmdFlag, true),
+        this.encodeData(password),
+        this.encodeData(this.OPERATOR_CODE),
+        ...periodBuffers,
+      ]
+    );
+    let cmd = this.dataToHex(address, DL645_2007_ControlCode.WRITE, dataBuf);
+    return cmd;
   }
 
 }
