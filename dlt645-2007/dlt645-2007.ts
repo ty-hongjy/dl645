@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-13 12:37:12
+ * @LastEditTime: 2026-05-13 14:25:59
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -160,7 +160,10 @@ export class DL645_2007 {
     '00010200': { name: '正向有功平段电量', unit: 'kWh', scale: 0.01 },
     '00010300': { name: '正向有功谷段电量', unit: 'kWh', scale: 0.01 },
     '00010400': { name: '正向有功尖段电量', unit: 'kWh', scale: 0.01 },
-    '0001FF00': { name: '正向有功电量数据块', unit: 'kWh', scale: 0.01 }
+    '0001FF00': { name: '正向有功电量数据块', unit: 'kWh', scale: 0.01 },
+
+    '04000101': { name: '日期', unit: 'yyyy-MM-dd', scale: 1 }, // 日期（年月日）
+    '04000102': { name: '时间', unit: 'HH:mm:ss', scale: 1 }, // 时间（时分秒）
   };
 
   static readonly CONTROL_CMD_MAP = {
@@ -1016,31 +1019,28 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
   }
 
  static readDateCmd(address: string): Buffer {
-  // const cmdFlag = '04000101', controlCode = '11';
-  let dataBuf = Buffer.concat([this.encodeData(DL645_2007_DataId.METER_DATE, true)]);
-  let cmd = this.dataToHex(address, DL645_2007_ControlCode.READ_SINGLE, dataBuf);
-  return cmd;
+  return this.buildReadCmd(address, DL645_2007_ControlCode.READ_SINGLE, DL645_2007_DataId.METER_DATE);
   }
 
   static readTimeCmd(address: string): Buffer {
-    // const cmdFlag = '04000102', controlCode = '11';
-    let dataBuf = Buffer.concat([this.encodeData(DL645_2007_DataId.METER_TIME, true)]);
-    let cmd = this.dataToHex(address, DL645_2007_ControlCode.READ_SINGLE, dataBuf);
-    return cmd;
+    return this.buildReadCmd(address, DL645_2007_ControlCode.READ_SINGLE, DL645_2007_DataId.METER_TIME);
   }
 
   static writeDateCmd(address: string, password: string, date: string): Buffer {
     // const cmdFlag = '04000101', controlCode = '14';
-    let dataBuf = Buffer.concat(
-      [
-        this.encodeData(DL645_2007_DataId.METER_DATE, true),
-        this.encodeData(password),
-        this.encodeData(this.OPERATOR_CODE),
-        this.encodeData(date, true),
-      ]
-    );
-    let cmd = this.dataToHex(address, DL645_2007_ControlCode.WRITE, dataBuf);
-    return cmd;
+    // let dataBuf = Buffer.concat(
+    //   [
+    //     this.encodeData(DL645_2007_DataId.METER_DATE, true),
+    //     this.encodeData(password),
+    //     this.encodeData(this.OPERATOR_CODE),
+    //     this.encodeData(date, true),
+    //   ]
+    // );
+    // let cmd = this.dataToHex(address, DL645_2007_ControlCode.WRITE, dataBuf);
+    // return cmd;
+
+    return this.buildControlCmd(address, password,DL645_2007_DataId.METER_DATE, date);
+
   }
 
   static writeTimeCmd(address: string, password: string, time: string): Buffer {
@@ -1058,10 +1058,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
   }
 
   static readPeriodCmd(address: string): Buffer {
-    // const cmdFlag = '04010001', controlCode = '11';
-    let dataBuf = Buffer.concat([this.encodeData(DL645_2007_DataId.PERIOD, true)]);
-    let cmd = this.dataToHex(address, DL645_2007_ControlCode.READ_SINGLE, dataBuf);
-    return cmd;
+    return this.buildReadCmd(address, DL645_2007_ControlCode.READ_SINGLE, DL645_2007_DataId.PERIOD);
   }
 
   static writePeriodCmd(address: string, password: string, no: number, period: any[]): Buffer {
