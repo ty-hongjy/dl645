@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-13 14:25:59
+ * @LastEditTime: 2026-05-14 15:21:54
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -1028,18 +1028,18 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
 
   static writeDateCmd(address: string, password: string, date: string): Buffer {
     // const cmdFlag = '04000101', controlCode = '14';
-    // let dataBuf = Buffer.concat(
-    //   [
-    //     this.encodeData(DL645_2007_DataId.METER_DATE, true),
-    //     this.encodeData(password),
-    //     this.encodeData(this.OPERATOR_CODE),
-    //     this.encodeData(date, true),
-    //   ]
-    // );
-    // let cmd = this.dataToHex(address, DL645_2007_ControlCode.WRITE, dataBuf);
-    // return cmd;
+    let dataBuf = Buffer.concat(
+      [
+        this.encodeData(DL645_2007_DataId.METER_DATE, true),
+        this.encodeData(password),
+        this.encodeData(this.OPERATOR_CODE),
+        this.encodeData(date, true),
+      ]
+    );
+    let cmd = this.dataToHex(address, DL645_2007_ControlCode.WRITE, dataBuf);
+    return cmd;
 
-    return this.buildControlCmd(address, password,DL645_2007_DataId.METER_DATE, date);
+    // return this.buildControlCmd(address, password,DL645_2007_DataId.METER_DATE, date);
 
   }
 
@@ -1055,6 +1055,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     );
     let cmd = this.dataToHex(address, DL645_2007_ControlCode.WRITE, dataBuf);
     return cmd;
+    // return this.buildControlCmd(address, password, DL645_2007_DataId.METER_TIME, time);
   }
 
   static readPeriodCmd(address: string): Buffer {
