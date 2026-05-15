@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-14 15:21:54
+ * @LastEditTime: 2026-05-15 09:06:33
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -34,7 +34,7 @@ export enum DL645_2007_DataId {
   VALLEY_PERIOD = '04010005', // 谷段时段（谷段）
   SUPER_PEAK_PERIOD = '04010006', // 超尖峰时段（超尖峰）
 
-  // TOTAL_ACTIVE_POWER = '02040000',   // 总有功功率
+  // 组合有功功率
   COMBINED_ACTIVE_TOTAL_ENERGY = '00000000',      // 组合有功总电能
   COMBINED_ACTIVE_ENERGY_DATA_BLOCK = '0000FF00', // 组合有功总能耗数据块
 
@@ -129,12 +129,8 @@ export interface ControlParseResult extends ParseResult {
   controlCmdType: string; // 控制命令类型（合闸/拉闸/保电/取消保电）
 }
 
-// 扩展DL645_2007类的静态方法
-// export class DL645_2007_Control_Extension {
-//   // 控制命令码映射（反向解析用）
-// }
 /**
- * DL/T645-2007 核心实现类（模256求和校验，无硬编码）
+ * DL/T645-2007 核心实现类
  */
 export class DL645_2007 {
   static readonly DATA_ID_MAP = {
@@ -235,13 +231,6 @@ export class DL645_2007 {
    * @returns 校验值（单个字节）
    */
   private static calculateSumCheck(bytes: number[]): number {
-    // let sum = 0;
-    // for (const byte of bytes) {
-    //   sum += byte;
-    //   // 实时取模避免数值过大（等价于最终sum % 256）
-    //   sum = sum % 256;
-    // }
-    // return sum & 0xff;
     return bytes.reduce((acc, byte) => (acc + byte) % 256, 0) & 0xff;
   }
 
@@ -280,50 +269,58 @@ export class DL645_2007 {
    * @param dataId 数据标识
    * @returns 完整的报文字节数组
    */
-  static buildReadCmd1( meterAddress: string, controlCode: DL645_2007_ControlCode, dataId: DL645_2007_DataId): Buffer {
-    // 1. 地址处理（仅反转）
-    const reversedAddress = this.reverseAddress(meterAddress);
-    // 2. 数据标识转原始字节数组（已反转）
-    // const rawDataBytes = this.dataIdToRawBytes(dataId);
-    // 3. 数据域每位加33（核心规则）
-    // const sendDataBytes = rawDataBytes.map(byte => (byte + this.DATA_OFFSET) & 0xff);
-    const sendDataBytes =  this.dataIdToRawBytes(dataId);
+  // static buildReadCmd1( meterAddress: string, controlCode: DL645_2007_ControlCode, dataId: DL645_2007_DataId): Buffer {
+  //   // 1. 地址处理（仅反转）
+  //   const reversedAddress = this.reverseAddress(meterAddress);
+  //   // 2. 数据标识转原始字节数组（已反转）
+  //   // const rawDataBytes = this.dataIdToRawBytes(dataId);
+  //   // 3. 数据域每位加33（核心规则）
+  //   // const sendDataBytes = rawDataBytes.map(byte => (byte + this.DATA_OFFSET) & 0xff);
+  //   const sendDataBytes =  this.dataIdToRawBytes(dataId);
 
-    console.log("sendDataBytes:",sendDataBytes);
-    // for (let i = 0; i < rawDataBytes.length; i++) {
-    //   console.log("sendDataBytes:",sendDataBytes[i]+this.DATA_OFFSET & 0xff,"sendDataBytes[i]+this.DATA_OFFSET & 0xff");
-    // }
+  //   console.log("sendDataBytes:",sendDataBytes);
+  //   // for (let i = 0; i < rawDataBytes.length; i++) {
+  //   //   console.log("sendDataBytes:",sendDataBytes[i]+this.DATA_OFFSET & 0xff,"sendDataBytes[i]+this.DATA_OFFSET & 0xff");
+  //   // }
 
-    // 4. 构建校验范围字节数组（从第一个帧起始符到数据域结束）
-    const checkSource = [
-      this.FRAME_START,          // 第一个帧起始符
-      ...reversedAddress,        // 反转后的地址
-      this.FRAME_START,          // 第二个帧起始符
-      controlCode,               // 控制码
-      sendDataBytes.length,      // 数据域长度
-      ...sendDataBytes           // 加偏移后的数据域
-    ];
+  //   // 4. 构建校验范围字节数组（从第一个帧起始符到数据域结束）
+  //   const checkSource = [
+  //     this.FRAME_START,          // 第一个帧起始符
+  //     ...reversedAddress,        // 反转后的地址
+  //     this.FRAME_START,          // 第二个帧起始符
+  //     controlCode,               // 控制码
+  //     sendDataBytes.length,      // 数据域长度
+  //     ...sendDataBytes           // 加偏移后的数据域
+  //   ];
 
 
-    // 5. 计算模256求和校验值（替代原硬编码/CRC8）
-    const checksum = this.calculateSumCheck(checkSource);
+  //   // 5. 计算模256求和校验值（替代原硬编码/CRC8）
+  //   const checksum = this.calculateSumCheck(checkSource);
 
-    // 6. 构建完整报文
-    const frame = [
-      ...checkSource,  // 帧起始符到数据域结束
-      checksum,        // 校验码
-      this.FRAME_END   // 帧结束符
-    ];
+  //   // 6. 构建完整报文
+  //   const frame = [
+  //     ...checkSource,  // 帧起始符到数据域结束
+  //     checksum,        // 校验码
+  //     this.FRAME_END   // 帧结束符
+  //   ];
 
-    // const coreHex = this.bytesToHexString(frame);
-    // const fullHex = this.FRAME_HEADER + coreHex;
-    // const sendBuffer1 = Buffer.from(fullHex, 'hex');
-    const sendBuffer = Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
-    console.log("buildReadCmd:"+sendBuffer.toString('hex'));
-    // return frame;
-    return sendBuffer;
-  }
+  //   // const coreHex = this.bytesToHexString(frame);
+  //   // const fullHex = this.FRAME_HEADER + coreHex;
+  //   // const sendBuffer1 = Buffer.from(fullHex, 'hex');
+  //   const sendBuffer = Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
+  //   console.log("buildReadCmd:"+sendBuffer.toString('hex'));
+  //   // return frame;
+  //   return sendBuffer;
+  // }
 
+  /**
+   * 构建DL645-2007读命令帧
+   *
+   * @param meterAddress - 电表地址，12位字符串
+   * @param controlCode - 控制码枚举值
+   * @param dataId - 数据标识枚举值
+   * @returns 构建好的命令帧Buffer
+   */
   static buildReadCmd( meterAddress: string, controlCode: DL645_2007_ControlCode, dataId: DL645_2007_DataId): Buffer {
     // console.log("buildReadCmd1:",meterAddress,controlCode,dataId);
     const sendDataBytes =  this.dataIdToRawBytes(dataId);
@@ -390,22 +387,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
   }
 
-  /**
-   * 获取完整命令字符串（含485帧头，强制大写）
-   * @param meterAddress 电表地址
-   * @param controlCode 控制码
-   * @param dataId 数据标识
-   * @returns 大写完整命令字符串
-   */
-  // static getFullCommandString(
-  //   meterAddress: string,
-  //   controlCode: DL645_2007_ControlCode,
-  //   dataId: DL645_2007_DataId
-  // ): string {
-  //   const commandBytes = this.buildReadRequest(meterAddress, controlCode, dataId);
-  //   const coreCmd = this.bytesToHexString(commandBytes);
-  //   return (this.FRAME_HEADER + coreCmd).toUpperCase();
-  // }
 
   /**
    * 命令对比方法（忽略大小写）
@@ -444,7 +425,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
    * @param dataBytes 接收的原始数据域字节（未减33H）
    * @returns 解析结果
    */
-  // static parseDataField(controlCode: number, dataBytes: number[]): void {
   static parseDataField(controlCode: number, dataBytes: number[]): ParameterResult {
     // 步骤1：还原数据域（减33H）
     const decodedBytes = this.decodeDataBytes(dataBytes);
@@ -488,27 +468,7 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
       };
       console.log('解析结果：', result);
     }
-    // const valueBytes = decodedBytes.slice(4+i,4+i+4);
-    // console.log('数据域字节（整体减33H后）：', valueBytes.reverse());
-    // let v1 = valueBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-    // console.log('数据域字节10进制BCD：', v1);
-    // const rawValue = parseInt(v1);
-    // const value = rawValue * dataIdConfig.scale;
-    // const result: ParameterResult = {
-    //   dataId,
-    //   name: dataIdConfig.name,
-    //   rawValue,
-    //   value,
-    //   unit: dataIdConfig.unit
-    // };
     return result;
-    // return {
-    //   dataId,
-    //   name: dataIdConfig.name,
-    //   rawValue,
-    //   value,
-    //   unit: dataIdConfig.unit
-    // };
   }
 
   /**
@@ -566,12 +526,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
       case DL645_2007_ControlCode.READ_BATCH:
         controlCodeName = '批量读数据';
         break;
-      // case DL645_2007_ControlCode.CONTROL:
-      //   controlCodeName = '控制命令';
-      //   break;
-      // case DL645_2007_ControlCode.CONTROL:
-      //   controlCodeName = '控制命令';
-      //   break;
     }
 
     // 5. 解析数据域
@@ -626,7 +580,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
    * @returns 完整命令Buffer
    */
   private static dataToHex(meterAddress: string, controlCode: number, dataBuf: Buffer): Buffer {
-
     // let csBuf = Buffer.from([0x00]);
     const lBuf = Buffer.from([dataBuf.length]);
     const controlCodeBuf = Buffer.from([controlCode]);
@@ -655,9 +608,15 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     ]);
   }
 
+  /**
+   * 将数据转换为DL/T 645-2007协议帧的十六进制格式
+   * 
+   * @param meterAddress - 电表地址（6字节BCD码格式的字符串）
+   * @param controlCode - 控制码
+   * @param dataBuf - 数据域内容（字节数组）
+   * @returns 完整的协议帧数据（Buffer），包含前置帧头、帧头、地址、控制码、数据长度、数据域、校验和及帧结束符
+   */
   private static dataToHex1(meterAddress: string, controlCode: number, dataBuf: number[]): Buffer {
-
-    // let csBuf = Buffer.from([0x00]);
     const lBuf = dataBuf.length;
     const controlCodeBuf = [controlCode];
     const frameStartBuf = [this.FRAME_START];
@@ -674,8 +633,8 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
 
     const checksum = this.calculateSumCheck(csDataBuf);
     const csBuf = Buffer.from([checksum]);
-    console.log("Frame_HEADER:",this.FRAME_HEADER);
-    console.log("Frame_HEADER:",Buffer.from(this.FRAME_HEADER, 'hex').toString('hex'));
+    // console.log("Frame_HEADER:",this.FRAME_HEADER);
+    // console.log("Frame_HEADER:",Buffer.from(this.FRAME_HEADER, 'hex').toString('hex'));
 
     return Buffer.concat([
       Buffer.from(this.FRAME_HEADER1),  // 前置帧头 FE FE FE FE
@@ -783,11 +742,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     const controlCode = bytes[8]-0x80;
     const dataLen = bytes[9];
     const end = bytes[bytes.length - 1];
-    // console.log(`start1:${dataLen}`);
-    // console.log(`start1:${bytes.length} `);
-
-    // ..defaultResult, message: '帧起始符/结束符错误' };
-
 
     if (start1 !== this.FRAME_START || start2 !== this.FRAME_START || end !== this.FRAME_END) {
       return { ...defaultResult, message: '帧起始符/结束符错误' };
@@ -798,14 +752,11 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     }
 
     // 4. 解析表地址（6字节，倒序）
-    // const addressBytes = bytes.slice(1, 7).reverse();
-    // const address = addressBytes.map(b => b.toString(16).padStart(2, '0')).join('');
     const address = this.restoreAddress(bytes.slice(1, 7));
 
     // 5. 数据域（4字节）
     const rawData = bytes.slice(9, 10);
     const realData = rawData.map(b => b - 0x33);
-        // const rawData = bytes[9];
     // const realData = rawData.map(b => b - 0x33);
     // 6. CRC校验（最后2字节）
     // const crc = bytes.slice(9 + dataLen, 9 + dataLen + 2);
@@ -819,7 +770,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     let success = false;
     let message = '';
     console.log(`结果${rawData}`);
-    // console.log(` 测试${realData}`);
 
     const op = rawData[0];
     if (op === 0x00) {
@@ -881,53 +831,13 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     // const timeBCD = this.timeToBCDBytes(targetTime);
     // const encodedTime = this.encodeDataBytes(timeBCD);
     console.debug(`timeBCD:${timeBCD}`);
-    // console.debug(`timeBCD:${Buffer.from(timeBCD).toString('hex')}`);
-    // const effTime = dayjs().format('ssmmHHDDMMYY');
-    // // const encodedEffTime = this.encodeData(effTime)
-    // // const effTimeHex = effTime.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-    // console.debug(`effTime:${Buffer.from(effTime, 'ascii').toString('hex')}`);
-    // // const effTimeHex = Buffer.from(effTime, 'ascii').toString('hex');
-    // const effTimeHex = Array.from(Buffer.from(effTime, 'hex'));
-    // console.log(`测试${effTimeHex}`);
 
       // 3. 数据域构建
       const dataBuf = Buffer.concat([
-      // this.encodeData(password),
-      // this.encodeData(this.OPERATOR_CODE),
-      // this.encodeData(DL645_2007_DataId.TIME_CALIBRATION), // 广播写控制码
-        // this.encodeData(timeBCD.toString())
         this.encodeData(timeBCD)
     ]);
     console.debug(`dataBuf:${Buffer.from(dataBuf).toString('hex')}`);
     return this.dataToHex(address, DL645_2007_ControlCode.BROADCAST_WRITE, dataBuf);
-
-    // // 3. 构建校验范围字节数组
-    // const checkSource = [
-    //   this.FRAME_START,          // 第一个帧起始符
-    //   ...reversedAddress,        // 反转后的广播地址
-    //   this.FRAME_START,          // 第二个帧起始符
-    //   DL645_2007_ControlCode.BROADCAST_WRITE, // 广播写控制码
-    //   // encodedTime.length,        // 数据域长度（固定6字节）
-    //   // ...encodedTime             // 加偏移后的时间数据
-    //   encodedTime.length,        // 数据域长度（固定6字节）
-    //   ...encodedTime             // 加偏移后的时间数据
-    // ];
-
-    // // 4. 计算模256求和校验值
-    // const checksum = this.calculateSumCheck(checkSource);
-
-    // // 5. 构建完整报文
-    // const frame = [
-    //   ...checkSource,
-    //   checksum,        // 校验码
-    //   this.FRAME_END   // 帧结束符
-    // ];
-
-    // 6. 拼接485前置帧头并返回Buffer
-    // const coreHex = this.bytesToHexString(frame);
-    // const fullHex = this.FRAME_HEADER + coreHex;
-    // return Buffer.concat([Buffer.from(this.FRAME_HEADER1),Buffer.from(frame)]);
-    // return Buffer.from(fullHex, 'hex');
   }
 
   /**
@@ -946,13 +856,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     // const encodedTime = this.encodeDataBytes(timeBCD);
     console.debug(`timeBCD:${timeBCD}`);
     console.debug(`timeBCD:${Buffer.from(timeBCD).toString('hex')}`);
-    // const effTime = dayjs().format('ssmmHHDDMMYY');
-    // // const encodedEffTime = this.encodeData(effTime)
-    // // const effTimeHex = effTime.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-    // console.debug(`effTime:${Buffer.from(effTime, 'ascii').toString('hex')}`);
-    // // const effTimeHex = Buffer.from(effTime, 'ascii').toString('hex');
-    // const effTimeHex = Array.from(Buffer.from(effTime, 'hex'));
-    // console.log(`测试${effTimeHex}`);
 
     const dataBuf = Buffer.concat([
       Buffer.from([0x10]), //固定长度
@@ -1043,6 +946,18 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
 
   }
 
+  
+  /**
+   * 生成写表时间命令
+   * @param address 电能表地址
+   * @param password 操作密码
+   * @param time 时间字符串 (格式：YYMMDDhhmmSS)
+   * @returns 命令帧数据缓冲区
+   * 注释说明：
+    功能：生成用于设置电能表时间的 DL/T 645-2007 协议写命令
+    参数：地址、密码、时间（格式为年月日時分秒的压缩BCD码）
+    返回值：符合协议格式的完整命令帧 Buffer
+   */
   static writeTimeCmd(address: string, password: string, time: string): Buffer {
     // const cmdFlag = '04000102', controlCode = '14';
     let dataBuf = Buffer.concat(
