@@ -252,8 +252,8 @@ export class DL645_2007 {
    * @param dataBytes 原始数据域字节数组
    * @returns 加密后的字节数组
    */
-  static encodeDataBytes(dataBytes: number[]): number[] {
-    return dataBytes.map(byte => (byte + this.DATA_OFFSET) % 256);
+  static encodeDataBytes(dataBytes: string): number[] {
+    return dataBytes.split('').map(byte => parseInt(byte, 16)).map(byte => (byte + this.DATA_OFFSET) % 256);
   }
 
   /**
@@ -638,18 +638,18 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
    * @returns 完整控制命令Buffer
    */
   static buildControlCmd( address: string, password: string, cmdCode: string, effectiveTime?: string  ): Buffer {
-    // const controlCode = '1C';
     // 处理生效时间，默认次日生效
-    const effTime = dayjs().add(1, 'day').format('ssmmHHDDMMYY');
-    // const effTime = effectiveTime || dayjs().add(1, 'day').format('ssmmHHDDMMYY');
+    // const effTime = dayjs().add(1, 'day').format('ssmmHHDDMMYY');
+    const effTime = effectiveTime || dayjs().add(1, 'day').format('ssmmHHDDMMYY');
 
     // 构建数据Buffer
-    // const dataBuf = Buffer.concat([
-    //   this.encodeDataBytes(Buffer.from(password, 'hex')), // 密码
+    // const dataBuf = ([
+    //   this.encodeDataBytes(password), // 密码
     //   this.encodeDataBytes(this.OPERATOR_CODE),
     //   this.encodeDataBytes(cmdCode),
     //   this.encodeDataBytes(effTime),
-    // ]);
+    // ]).flat();
+    // return this.dataToHex1(address, DL645_2007_ControlCode.CONTROL, dataBuf);
 
     console.log('数据域字节：',  this.encodeData(password).toString('hex'),',',this.encodeData(this.OPERATOR_CODE).toString('hex'),',',this.encodeData(cmdCode).toString('hex'),',',this.encodeData(effTime).toString('hex'));
     const dataBuf = Buffer.concat([
@@ -876,15 +876,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     // return Buffer.from(fullHex, 'hex');
   }
 
-
-  /**
-   * 快捷方法：广播校准为当前系统时间
-   * @returns 广播校时命令Buffer
-   */
-  // static broadcastCalibrateCurrentTime(meterAddress: string, targetTime?: Dayjs): Buffer {
-  //   return this.buildBroadcastTimeCalibrationCmd(targetTime);
-  // }
-
   /**
    * 验证时间BCD码合法性（可选，用于校验输入时间）
    * @param time 待验证时间
@@ -930,7 +921,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
 
   }
 
-  
   /**
    * 生成写表时间命令
    * @param address 电能表地址
@@ -962,7 +952,6 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
 
   static writePeriodCmd(address: string, password: string, no: number, period: any[]): Buffer {
     const cmdFlag = `040100${no.toString().padStart(2, '0')}`;
-    // , controlCode = '14';
     // 将 JSON 数据处理成 Buffer 数组
     const periodBuffers = period.map(item => {
       const combined = `${item.time}${item.price_no.toString().padStart(2, '0')}`;
