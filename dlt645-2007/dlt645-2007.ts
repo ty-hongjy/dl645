@@ -3,7 +3,7 @@
  * @Autor: hongjy
  * @Date: 2026-02-13 14:30:33
  * @LastEditors: name
- * @LastEditTime: 2026-05-15 17:18:50
+ * @LastEditTime: 2026-05-15 17:22:44
  */
 import * as dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs'
@@ -649,6 +649,8 @@ static buildBatchReadMultiRateCmds(meterAddress: string): Buffer[] {
     //   this.encodeDataBytes(cmdCode),
     //   this.encodeDataBytes(effTime),
     // ]).flat();
+    // console.log('数据域字节：',  dataBuf);
+    // console.log('数据域字节：',  this.encodeDataBytes(password).toString(),',',this.encodeDataBytes(this.OPERATOR_CODE).toString(),',',this.encodeDataBytes(cmdCode).toString(),',',this.encodeDataBytes(effTime).toString());
     // return this.dataToHex1(address, DL645_2007_ControlCode.CONTROL, dataBuf);
 
     console.log('数据域字节：',  this.encodeData(password).toString('hex'),',',this.encodeData(this.OPERATOR_CODE).toString('hex'),',',this.encodeData(cmdCode).toString('hex'),',',this.encodeData(effTime).toString('hex'));
